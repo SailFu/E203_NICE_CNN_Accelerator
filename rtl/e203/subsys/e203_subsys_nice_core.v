@@ -1,22 +1,6 @@
-/*                                                                      
- Copyright 2018-2020 Nuclei System Technology, Inc.                
-                                                                         
- Licensed under the Apache License, Version 2.0 (the "License");         
- you may not use this file except in compliance with the License.        
- You may obtain a copy of the License at                                 
-                                                                         
-     http://www.apache.org/licenses/LICENSE-2.0                          
-                                                                         
-  Unless required by applicable law or agreed to in writing, software    
- distributed under the License is distributed on an "AS IS" BASIS,       
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and     
- limitations under the License.                                          
- */
-
 //=====================================================================
 //
-// Designer   : LZB
+// Designer   : LZB, FyF
 //
 // Description:
 //  The Module to realize a simple NICE core
@@ -87,35 +71,12 @@ module e203_subsys_nice_core (
 //	.insn cb 0x1, 0x6, a1, target           26: dde9    [ 	]+beqz[ 	]+a1,0 target
 //	.insn cj 0x1, 0x5, target               28: bfe1    [ 	]+j   [ 	]+0 targe
 
-   ////////////////////////////////////////////////////////////
-   // decode
-   ////////////////////////////////////////////////////////////
-   wire [6:0] opcode      = {7{nice_req_valid}} & nice_req_inst[6:0];
-   wire [2:0] rv32_func3  = {3{nice_req_valid}} & nice_req_inst[14:12];
-   wire [6:0] rv32_func7  = {7{nice_req_valid}} & nice_req_inst[31:25];
-
-//   wire opcode_custom0 = (opcode == 7'b0001011); 
-//   wire opcode_custom1 = (opcode == 7'b0101011); 
-//   wire opcode_custom2 = (opcode == 7'b1011011); 
-   wire opcode_custom3 = (opcode == 7'b1111011); 
-
-   wire rv32_func3_000 = (rv32_func3 == 3'b000); 
-   wire rv32_func3_001 = (rv32_func3 == 3'b001); 
-   wire rv32_func3_010 = (rv32_func3 == 3'b010); 
-   wire rv32_func3_011 = (rv32_func3 == 3'b011); 
-   wire rv32_func3_100 = (rv32_func3 == 3'b100); 
-   wire rv32_func3_101 = (rv32_func3 == 3'b101); 
-   wire rv32_func3_110 = (rv32_func3 == 3'b110); 
-   wire rv32_func3_111 = (rv32_func3 == 3'b111); 
-
-   wire rv32_func7_0000000 = (rv32_func7 == 7'b0000000); 
-   wire rv32_func7_0000001 = (rv32_func7 == 7'b0000001); 
-   wire rv32_func7_0000010 = (rv32_func7 == 7'b0000010); 
-   wire rv32_func7_0000011 = (rv32_func7 == 7'b0000011); 
-   wire rv32_func7_0000100 = (rv32_func7 == 7'b0000100); 
-   wire rv32_func7_0000101 = (rv32_func7 == 7'b0000101); 
-   wire rv32_func7_0000110 = (rv32_func7 == 7'b0000110); 
-   wire rv32_func7_0000111 = (rv32_func7 == 7'b0000111); 
+  ////////////////////////////////////////////////////////////
+  // decode
+  ////////////////////////////////////////////////////////////
+  wire [6:0] opcode = nice_req_valid ? nice_req_inst[6:0]   : 7'b0;
+  wire [2:0] func3  = nice_req_valid ? nice_req_inst[14:12] : 3'b0;
+  wire [6:0] func7  = nice_req_valid ? nice_req_inst[31:25] : 7'b0;
 
    ////////////////////////////////////////////////////////////
    // custom3:
@@ -131,10 +92,12 @@ module e203_subsys_nice_core (
    //     rowsum rd, a1, x0
    //     .insn r opcode, func3, func7, rd, rs1, rs2    
    ////////////////////////////////////////////////////////////
-   wire custom3_lbuf     = opcode_custom3 & rv32_func3_010 & rv32_func7_0000001; 
-   wire custom3_sbuf     = opcode_custom3 & rv32_func3_010 & rv32_func7_0000010; 
-   wire custom3_rowsum   = opcode_custom3 & rv32_func3_110 & rv32_func7_0000110; 
+  wire custom3 = (opcode == 7'b1111011);
+  wire custom3_lbuf   = custom3 && (func3 == 3'b010) && (func7 == 7'b0000001);
+  wire custom3_sbuf   = custom3 && (func3 == 3'b010) && (func7 == 7'b0000010);
+  wire custom3_rowsum = custom3 && (func3 == 3'b110) && (func7 == 7'b0000110);
 
+  
    ////////////////////////////////////////////////////////////
    //  multi-cyc op 
    ////////////////////////////////////////////////////////////
@@ -151,12 +114,12 @@ module e203_subsys_nice_core (
    parameter SBUF     = 2'd2; 
    parameter ROWSUM   = 2'd3; 
 
-   wire [NICE_FSM_WIDTH-1:0] state_r; 
-   wire [NICE_FSM_WIDTH-1:0] nxt_state; 
+   wire [NICE_FSM_WIDTH-1:0] state_r;
+   wire [NICE_FSM_WIDTH-1:0] nxt_state;
    wire [NICE_FSM_WIDTH-1:0] state_idle_nxt; 
    wire [NICE_FSM_WIDTH-1:0] state_lbuf_nxt; 
    wire [NICE_FSM_WIDTH-1:0] state_sbuf_nxt; 
-   wire [NICE_FSM_WIDTH-1:0] state_rowsum_nxt; 
+   wire [NICE_FSM_WIDTH-1:0] state_rowsum_nxt;
 
    wire nice_req_hsked;
    wire nice_rsp_hsked;
@@ -210,7 +173,7 @@ module e203_subsys_nice_core (
    //wire [COL_IDX_W-1:0]  rownum;
 
    //////////// 1. custom3_lbuf
-   wire [ROWBUF_IDX_W-1:0] lbuf_cnt_r; 
+   //wire [ROWBUF_IDX_W-1:0] lbuf_cnt_r; 
    wire [ROWBUF_IDX_W-1:0] lbuf_cnt_nxt; 
    wire lbuf_cnt_clr;
    wire lbuf_cnt_incr;
