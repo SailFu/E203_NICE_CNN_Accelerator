@@ -108,63 +108,74 @@ module e203_subsys_nice_core (
    ////////////////////////////////////////////////////////////
    // NICE FSM 
    ////////////////////////////////////////////////////////////
-   parameter NICE_FSM_WIDTH = 2; 
-   parameter IDLE     = 2'd0; 
-   parameter LBUF     = 2'd1; 
-   parameter SBUF     = 2'd2; 
-   parameter ROWSUM   = 2'd3; 
+   localparam NICE_FSM_WIDTH = 2;
+   localparam IDLE     = 2'd0;
+   localparam LBUF     = 2'd1;
+   localparam SBUF     = 2'd2;
+   localparam ROWSUM   = 2'd3;
 
-   wire [NICE_FSM_WIDTH-1:0] state_r;
-   wire [NICE_FSM_WIDTH-1:0] nxt_state;
-   wire [NICE_FSM_WIDTH-1:0] state_idle_nxt; 
-   wire [NICE_FSM_WIDTH-1:0] state_lbuf_nxt; 
-   wire [NICE_FSM_WIDTH-1:0] state_sbuf_nxt; 
-   wire [NICE_FSM_WIDTH-1:0] state_rowsum_nxt;
+   // FSM state register
+   reg [NICE_FSM_WIDTH-1:0] state;
 
-   wire nice_req_hsked;
-   wire nice_rsp_hsked;
-   wire nice_icb_rsp_hsked;
-   wire illgel_instr = ~(custom_multi_cyc_op);
-
-   wire state_idle_exit_ena; 
-   wire state_lbuf_exit_ena; 
-   wire state_sbuf_exit_ena; 
-   wire state_rowsum_exit_ena; 
-   wire state_ena; 
-
-   wire state_is_idle     = (state_r == IDLE); 
-   wire state_is_lbuf     = (state_r == LBUF); 
-   wire state_is_sbuf     = (state_r == SBUF); 
-   wire state_is_rowsum   = (state_r == ROWSUM); 
-
-   assign state_idle_exit_ena = state_is_idle & nice_req_hsked & ~illgel_instr; 
-   assign state_idle_nxt =  custom3_lbuf    ? LBUF   : 
-                            custom3_sbuf    ? SBUF   :
-                            custom3_rowsum  ? ROWSUM :
-			    IDLE;
-
-   wire lbuf_icb_rsp_hsked_last; 
-   assign state_lbuf_exit_ena = state_is_lbuf & lbuf_icb_rsp_hsked_last; 
-   assign state_lbuf_nxt = IDLE;
-
-   wire sbuf_icb_rsp_hsked_last; 
-   assign state_sbuf_exit_ena = state_is_sbuf & sbuf_icb_rsp_hsked_last; 
-   assign state_sbuf_nxt = IDLE;
-
-   wire rowsum_done; 
-   assign state_rowsum_exit_ena = state_is_rowsum & rowsum_done; 
-   assign state_rowsum_nxt = IDLE;
-
-   assign nxt_state =   ({NICE_FSM_WIDTH{state_idle_exit_ena   }} & state_idle_nxt   )
-                      | ({NICE_FSM_WIDTH{state_lbuf_exit_ena   }} & state_lbuf_nxt   ) 
-                      | ({NICE_FSM_WIDTH{state_sbuf_exit_ena   }} & state_sbuf_nxt   ) 
-                      | ({NICE_FSM_WIDTH{state_rowsum_exit_ena }} & state_rowsum_nxt ) 
-                      ;
-
-   assign state_ena =   state_idle_exit_ena | state_lbuf_exit_ena 
-                      | state_sbuf_exit_ena | state_rowsum_exit_ena;
-
-   sirv_gnrl_dfflr #(NICE_FSM_WIDTH)   state_dfflr (state_ena, nxt_state, state_r, nice_clk, nice_rst_n);
+   wire state_is_idle     = (state == IDLE); 
+   wire state_is_lbuf     = (state == LBUF); 
+   wire state_is_sbuf     = (state == SBUF); 
+   wire state_is_rowsum   = (state == ROWSUM); 
+   
+   // Note: The following signals are assumed to be defined elsewhere:
+   wire nice_req_hsked, lbuf_icb_rsp_hsked_last, sbuf_icb_rsp_hsked_last, rowsum_done;
+   
+   // FSM state update using behavioral description
+   always @(posedge nice_clk or negedge nice_rst_n) begin
+     if (!nice_rst_n)
+       state <= IDLE;  // Reset state to IDLE
+     else begin
+       case (state)
+         // In IDLE, if a valid request occurs and the instruction is one of the supported custom3 ops,
+         // transition to the corresponding state.
+         IDLE: begin
+           if (nice_req_hsked && (custom3_lbuf || custom3_sbuf || custom3_rowsum)) begin
+             if (custom3_lbuf)
+               state <= LBUF;
+             else if (custom3_sbuf)
+               state <= SBUF;
+             else if (custom3_rowsum)
+               state <= ROWSUM;
+           end
+           else begin
+             state <= IDLE;
+           end
+         end
+   
+         // In LBUF, remain until the last ICB response handshake occurs.
+         LBUF: begin
+           if (lbuf_icb_rsp_hsked_last)
+             state <= IDLE;
+           else
+             state <= LBUF;
+         end
+   
+         // In SBUF, remain until the last ICB response handshake occurs.
+         SBUF: begin
+           if (sbuf_icb_rsp_hsked_last)
+             state <= IDLE;
+           else
+             state <= SBUF;
+         end
+   
+         // In ROWSUM, remain until the row sum operation is completed.
+         ROWSUM: begin
+           if (rowsum_done)
+             state <= IDLE;
+           else
+             state <= ROWSUM;
+         end
+   
+         default: state <= IDLE;
+       endcase
+     end
+   end
+   
 
    ////////////////////////////////////////////////////////////
    // instr EXU
@@ -173,7 +184,7 @@ module e203_subsys_nice_core (
    //wire [COL_IDX_W-1:0]  rownum;
 
    //////////// 1. custom3_lbuf
-   //wire [ROWBUF_IDX_W-1:0] lbuf_cnt_r; 
+   wire [ROWBUF_IDX_W-1:0] lbuf_cnt_r; 
    wire [ROWBUF_IDX_W-1:0] lbuf_cnt_nxt; 
    wire lbuf_cnt_clr;
    wire lbuf_cnt_incr;
@@ -182,6 +193,9 @@ module e203_subsys_nice_core (
    wire lbuf_icb_rsp_hsked;
    wire nice_rsp_valid_lbuf;
    wire nice_icb_cmd_valid_lbuf;
+
+   wire nice_icb_rsp_hsked;
+   wire nice_rsp_hsked;
 
    assign lbuf_icb_rsp_hsked = state_is_lbuf & nice_icb_rsp_hsked;
    assign lbuf_icb_rsp_hsked_last = lbuf_icb_rsp_hsked & lbuf_cnt_last;
