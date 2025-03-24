@@ -71,6 +71,7 @@ module e203_subsys_nice_core (
 //	.insn cb 0x1, 0x6, a1, target           26: dde9    [ 	]+beqz[ 	]+a1,0 target
 //	.insn cj 0x1, 0x5, target               28: bfe1    [ 	]+j   [ 	]+0 targe
 
+
   ////////////////////////////////////////////////////////////
   // decode
   ////////////////////////////////////////////////////////////
@@ -122,8 +123,15 @@ module e203_subsys_nice_core (
    wire state_is_sbuf     = (state == SBUF); 
    wire state_is_rowsum   = (state == ROWSUM); 
    
-   // Note: The following signals are assumed to be defined elsewhere:
-   wire nice_req_hsked, lbuf_icb_rsp_hsked_last, sbuf_icb_rsp_hsked_last, rowsum_done;
+   // handshake success signals
+   wire nice_req_hsked;
+   wire nice_icb_rsp_hsked; 
+   wire nice_rsp_hsked;
+
+   // finish signals
+   wire lbuf_icb_rsp_hsked_last;
+   wire sbuf_icb_rsp_hsked_last;
+   wire rowsum_done;
    
    // FSM state update using behavioral description
    always @(posedge nice_clk or negedge nice_rst_n) begin
@@ -184,37 +192,36 @@ module e203_subsys_nice_core (
    //wire [COL_IDX_W-1:0]  rownum;
 
    //////////// 1. custom3_lbuf
-   wire [ROWBUF_IDX_W-1:0] lbuf_cnt_r; 
-   wire [ROWBUF_IDX_W-1:0] lbuf_cnt_nxt; 
-   wire lbuf_cnt_clr;
-   wire lbuf_cnt_incr;
-   wire lbuf_cnt_ena;
-   wire lbuf_cnt_last;
-   wire lbuf_icb_rsp_hsked;
-   wire nice_rsp_valid_lbuf;
-   wire nice_icb_cmd_valid_lbuf;
-
-   wire nice_icb_rsp_hsked;
-   wire nice_rsp_hsked;
-
-   assign lbuf_icb_rsp_hsked = state_is_lbuf & nice_icb_rsp_hsked;
-   assign lbuf_icb_rsp_hsked_last = lbuf_icb_rsp_hsked & lbuf_cnt_last;
-   assign lbuf_cnt_last = (lbuf_cnt_r == clonum);
-   assign lbuf_cnt_clr = custom3_lbuf & nice_req_hsked;
-   assign lbuf_cnt_incr = lbuf_icb_rsp_hsked & ~lbuf_cnt_last;
-   assign lbuf_cnt_ena = lbuf_cnt_clr | lbuf_cnt_incr;
-   assign lbuf_cnt_nxt =   ({ROWBUF_IDX_W{lbuf_cnt_clr }} & {ROWBUF_IDX_W{1'b0}})
-                         | ({ROWBUF_IDX_W{lbuf_cnt_incr}} & (lbuf_cnt_r + 1'b1) )
-                         ;
-
-   sirv_gnrl_dfflr #(ROWBUF_IDX_W)   lbuf_cnt_dfflr (lbuf_cnt_ena, lbuf_cnt_nxt, lbuf_cnt_r, nice_clk, nice_rst_n);
-
-   // nice_rsp_valid wait for nice_icb_rsp_valid in LBUF
-   assign nice_rsp_valid_lbuf = state_is_lbuf & lbuf_cnt_last & nice_icb_rsp_valid;
-
-   // nice_icb_cmd_valid sets when lbuf_cnt_r is not full in LBUF
-   assign nice_icb_cmd_valid_lbuf = (state_is_lbuf & (lbuf_cnt_r < clonum));
-
+   // lbuf counter register
+   reg [ROWBUF_IDX_W-1:0] lbuf_cnt;
+   
+   // Combinational signals for counter update
+   wire lbuf_cnt_last   = (lbuf_cnt == clonum);
+   wire lbuf_cnt_clr    = custom3_lbuf & nice_req_hsked;  // Clear counter when a new lbuf op is accepted
+   wire lbuf_icb_rsp_hs = state_is_lbuf & nice_icb_rsp_hsked; // Memory response handshake in LBUF state
+   wire lbuf_cnt_incr   = lbuf_icb_rsp_hs & ~lbuf_cnt_last;   // Increment counter if handshake occurs and counter is not full
+   
+   // Next value for the counter: clear if new op, increment if handshake occurs, otherwise hold value
+   wire [ROWBUF_IDX_W-1:0] lbuf_cnt_nxt = lbuf_cnt_clr ? 0 :
+                                         (lbuf_cnt_incr ? lbuf_cnt + 1'b1 : lbuf_cnt);
+   
+   // Sequential block updating the counter
+   always @(posedge nice_clk or negedge nice_rst_n) begin
+     if (!nice_rst_n)
+       lbuf_cnt <= 0;
+     else
+       lbuf_cnt <= lbuf_cnt_nxt;
+   end
+   
+   // Generate a signal indicating the last memory response handshake in LBUF state
+   assign lbuf_icb_rsp_hsked_last = lbuf_icb_rsp_hs & lbuf_cnt_last;
+   
+   // Generate response valid: asserted when in LBUF state, counter is full, and the memory response is valid
+   wire nice_rsp_valid_lbuf = state_is_lbuf & lbuf_cnt_last & nice_icb_rsp_valid;
+   
+   // Generate memory command valid: asserted in LBUF state when counter is not yet full
+   wire nice_icb_cmd_valid_lbuf = state_is_lbuf & (lbuf_cnt < clonum);
+   
    //////////// 2. custom3_sbuf
    wire [ROWBUF_IDX_W-1:0] sbuf_cnt_r; 
    wire [ROWBUF_IDX_W-1:0] sbuf_cnt_nxt; 
@@ -354,8 +361,8 @@ module e203_subsys_nice_core (
    //wire [ROWBUF_IDX_W-1:0] sbuf_idx; 
    
    // lbuf write to rowbuf
-   wire [ROWBUF_IDX_W-1:0] lbuf_idx = lbuf_cnt_r; 
-   wire lbuf_wr = lbuf_icb_rsp_hsked; 
+   wire [ROWBUF_IDX_W-1:0] lbuf_idx = lbuf_cnt; 
+   wire lbuf_wr = state_is_lbuf & nice_icb_rsp_hsked;
    wire [`E203_XLEN-1:0] lbuf_wdata = nice_icb_rsp_rdata;
 
    // rowsum write to rowbuf(column accumulated data)
