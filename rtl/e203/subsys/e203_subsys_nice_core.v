@@ -222,6 +222,7 @@ module e203_subsys_nice_core (
    // Generate memory command valid: asserted in LBUF state when counter is not yet full
    wire nice_icb_cmd_valid_lbuf = state_is_lbuf & (lbuf_cnt < clonum);
    
+
    //////////// 2. custom3_sbuf
    reg [ROWBUF_IDX_W-1:0] sbuf_cnt;
 
@@ -281,78 +282,117 @@ module e203_subsys_nice_core (
 
    //////////// 3. custom3_rowsum
    // rowbuf counter 
-   wire [ROWBUF_IDX_W-1:0] rowbuf_cnt_r; 
-   wire [ROWBUF_IDX_W-1:0] rowbuf_cnt_nxt; 
-   wire rowbuf_cnt_clr;
-   wire rowbuf_cnt_incr;
-   wire rowbuf_cnt_ena;
-   wire rowbuf_cnt_last;
-   wire rowbuf_icb_rsp_hsked;
-   wire rowbuf_rsp_hsked;
+   reg [ROWBUF_IDX_W-1:0] rowbuf_cnt;
+
+   // When in ROWSUM state, a memory response handshake occurs.
+   wire rowbuf_icb_rsp_hsked = state_is_rowsum & nice_icb_rsp_hsked;
+   
+   // Check if the counter has reached the fixed 'clonum'
+   wire rowbuf_cnt_last = (rowbuf_cnt == clonum);
+   
+   // Clear the counter when the last handshake is received
+   wire rowbuf_cnt_clr = rowbuf_icb_rsp_hsked & rowbuf_cnt_last;
+   
+   // Increment the counter when a handshake occurs and the counter is not full
+   wire rowbuf_cnt_incr = rowbuf_icb_rsp_hsked & ~rowbuf_cnt_last;
+   
    wire nice_rsp_valid_rowsum;
+   // Optionally, generate a handshake signal for the response (used elsewhere)
+   wire rowbuf_rsp_hsked = nice_rsp_valid_rowsum & nice_rsp_ready;
+   
+   // Sequential block to update the row buffer counter
+   always @(posedge nice_clk or negedge nice_rst_n) begin
+     if (!nice_rst_n)
+       rowbuf_cnt <= 0;                      // Reset counter to 0 on reset
+     else if (rowbuf_cnt_clr)
+       rowbuf_cnt <= 0;                      // Clear counter when last handshake occurs
+     else if (rowbuf_cnt_incr)
+       rowbuf_cnt <= rowbuf_cnt + 1;         // Increment counter if handshake occurs and not full
+     else
+       rowbuf_cnt <= rowbuf_cnt;             // Otherwise, keep the counter value
+   end
+   
+  
+  // recieve data buffer, to make sure rowsum ops come from registers 
+  // Control signal generation:
+  // - rcv_data_buf_set: Triggered when a row-buffer memory response handshake occurs.
+  // - rcv_data_buf_clr: Triggered when the row-buffer response handshake occurs.
+  // - rcv_data_buf_ena: Enable signal for updating the data buffer and index.
+  wire rcv_data_buf_set = rowbuf_icb_rsp_hsked;  // Set signal: triggered by memory response handshake in row-buffer
+  wire rcv_data_buf_clr = rowbuf_rsp_hsked;      // Clear signal: triggered by row-buffer response handshake
+  wire rcv_data_buf_ena = rcv_data_buf_set | rcv_data_buf_clr;
 
-   assign rowbuf_rsp_hsked = nice_rsp_valid_rowsum & nice_rsp_ready;
-   assign rowbuf_icb_rsp_hsked = state_is_rowsum & nice_icb_rsp_hsked;
-   assign rowbuf_cnt_last = (rowbuf_cnt_r == clonum);
-   assign rowbuf_cnt_clr = rowbuf_icb_rsp_hsked & rowbuf_cnt_last;
-   assign rowbuf_cnt_incr = rowbuf_icb_rsp_hsked & ~rowbuf_cnt_last;
-   assign rowbuf_cnt_ena = rowbuf_cnt_clr | rowbuf_cnt_incr;
-   assign rowbuf_cnt_nxt =   ({ROWBUF_IDX_W{rowbuf_cnt_clr }} & {ROWBUF_IDX_W{1'b0}})
-                           | ({ROWBUF_IDX_W{rowbuf_cnt_incr}} & (rowbuf_cnt_r + 1'b1))
-                           ;
-   //assign nice_icb_cmd_valid_rowbuf =   (state_is_idle & custom3_rowsum)
-   //                                  | (state_is_rowsum & (rowbuf_cnt_r <= clonum) & (clonum != 0))
-   //                                  ;
+  // rcv_data_buf_valid: A flag indicating the data buffer has been updated.
+  // This register simply latches the enable signal value.
+  reg rcv_data_buf_valid;
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      rcv_data_buf_valid <= 1'b0;
+    else
+      rcv_data_buf_valid <= rcv_data_buf_ena;
+  end
 
-   sirv_gnrl_dfflr #(ROWBUF_IDX_W)   rowbuf_cnt_dfflr (rowbuf_cnt_ena, rowbuf_cnt_nxt, rowbuf_cnt_r, nice_clk, nice_rst_n);
+  // rcv_data_buf: Data buffer to capture memory response data.
+  // It updates with the memory response when enabled.
+  reg [`E203_XLEN-1:0] rcv_data_buf;
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      rcv_data_buf <= {`E203_XLEN{1'b0}};
+    else if (rcv_data_buf_ena)
+      rcv_data_buf <= nice_icb_rsp_rdata;
+  end
 
-   // recieve data buffer, to make sure rowsum ops come from registers 
-   wire rcv_data_buf_ena;
-   wire rcv_data_buf_set;
-   wire rcv_data_buf_clr;
-   wire rcv_data_buf_valid;
-   wire [`E203_XLEN-1:0] rcv_data_buf; 
-   wire [ROWBUF_IDX_W-1:0] rcv_data_buf_idx; 
-   wire [ROWBUF_IDX_W-1:0] rcv_data_buf_idx_nxt; 
+  // rcv_data_buf_idx: Index register for the data buffer.
+  // When the clear signal is asserted, it resets to 0;
+  // when the set signal is asserted, it captures the current row buffer counter value.
+  reg [ROWBUF_IDX_W-1:0] rcv_data_buf_idx;
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      rcv_data_buf_idx <= 0;
+    else if (rcv_data_buf_ena) begin
+      if (rcv_data_buf_clr)
+        rcv_data_buf_idx <= 0;
+      else if (rcv_data_buf_set)
+        rcv_data_buf_idx <= rowbuf_cnt;
+    end
+  end
 
-   assign rcv_data_buf_set = rowbuf_icb_rsp_hsked;
-   assign rcv_data_buf_clr = rowbuf_rsp_hsked;
-   assign rcv_data_buf_ena = rcv_data_buf_clr | rcv_data_buf_set;
-   assign rcv_data_buf_idx_nxt =   ({ROWBUF_IDX_W{rcv_data_buf_clr}} & {ROWBUF_IDX_W{1'b0}})
-                                 | ({ROWBUF_IDX_W{rcv_data_buf_set}} & rowbuf_cnt_r        );
 
-   sirv_gnrl_dfflr #(1)   rcv_data_buf_valid_dfflr (1'b1, rcv_data_buf_ena, rcv_data_buf_valid, nice_clk, nice_rst_n);
-   sirv_gnrl_dfflr #(`E203_XLEN)   rcv_data_buf_dfflr (rcv_data_buf_ena, nice_icb_rsp_rdata, rcv_data_buf, nice_clk, nice_rst_n);
-   sirv_gnrl_dfflr #(ROWBUF_IDX_W)   rowbuf_cnt_d_dfflr (rcv_data_buf_ena, rcv_data_buf_idx_nxt, rcv_data_buf_idx, nice_clk, nice_rst_n);
+  // rowsum accumulator 
+  // This block accumulates received data to form the row sum.
+  // When a new data word is valid (rcv_data_buf_valid), if its index is 0, the accumulator is set
+  // to the received value; otherwise, the received data is added to the current accumulator value.
+  reg [`E203_XLEN-1:0] rowsum_acc;
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      rowsum_acc <= 0;
+    else if (rcv_data_buf_valid) begin
+      if (rcv_data_buf_idx == 0)
+        rowsum_acc <= rcv_data_buf;         // Set accumulator on first valid data
+      else
+        rowsum_acc <= rowsum_acc + rcv_data_buf; // Add subsequent data
+    end
+  end
 
-   // rowsum accumulator 
-   wire [`E203_XLEN-1:0] rowsum_acc_r;
-   wire [`E203_XLEN-1:0] rowsum_acc_nxt;
-   wire [`E203_XLEN-1:0] rowsum_acc_adder;
-   wire rowsum_acc_ena;
-   wire rowsum_acc_set;
-   wire rowsum_acc_flg;
-   wire nice_icb_cmd_valid_rowsum;
-   wire [`E203_XLEN-1:0] rowsum_res;
+  // Define rowsum_done as when in ROWSUM state and the response handshake occurs.
+  assign rowsum_done = state_is_rowsum & nice_rsp_hsked;
 
-   assign rowsum_acc_set = rcv_data_buf_valid & (rcv_data_buf_idx == {ROWBUF_IDX_W{1'b0}});
-   assign rowsum_acc_flg = rcv_data_buf_valid & (rcv_data_buf_idx != {ROWBUF_IDX_W{1'b0}});
-   assign rowsum_acc_adder = rcv_data_buf + rowsum_acc_r;
-   assign rowsum_acc_ena = rowsum_acc_set | rowsum_acc_flg;
-   assign rowsum_acc_nxt =   ({`E203_XLEN{rowsum_acc_set}} & rcv_data_buf)
-                           | ({`E203_XLEN{rowsum_acc_flg}} & rowsum_acc_adder)
-                           ;
- 
-   sirv_gnrl_dfflr #(`E203_XLEN)   rowsum_acc_dfflr (rowsum_acc_ena, rowsum_acc_nxt, rowsum_acc_r, nice_clk, nice_rst_n);
+  // The final row sum result is held in rowsum_acc.
+  wire [`E203_XLEN-1:0] rowsum_res = rowsum_acc;
 
-   assign rowsum_done = state_is_rowsum & nice_rsp_hsked;
-   assign rowsum_res  = rowsum_acc_r;
+  // Define a flag for intermediate accumulation (i.e., when the received data is not the first element)
+  wire rowsum_acc_flg = rcv_data_buf_valid & (rcv_data_buf_idx != 0);
 
-   // rowsum finishes when the last acc data is added to rowsum_acc_r  
-   assign nice_rsp_valid_rowsum = state_is_rowsum & (rcv_data_buf_idx == clonum) & ~rowsum_acc_flg;
+  // Generate the response valid signal for rowsum:
+  // It is asserted when in ROWSUM state, the received data index equals clonum, 
+  // and no intermediate accumulation is pending.
+  assign nice_rsp_valid_rowsum = state_is_rowsum & (rcv_data_buf_idx == clonum) & ~rowsum_acc_flg;
 
-   // nice_icb_cmd_valid sets when rcv_data_buf_idx is not full in LBUF
-   assign nice_icb_cmd_valid_rowsum = state_is_rowsum & (rcv_data_buf_idx < clonum) & ~rowsum_acc_flg;
+  // Generate the command valid signal for rowsum:
+  // It is asserted in ROWSUM state when the received data index is less than clonum and
+  // no intermediate accumulation is pending.
+  wire nice_icb_cmd_valid_rowsum = state_is_rowsum & (rcv_data_buf_idx < clonum) & ~rowsum_acc_flg;
+
 
    //////////// rowbuf
    // rowbuf access list:
@@ -492,5 +532,3 @@ module e203_subsys_nice_core (
 
 endmodule
 `endif//}
-
-
