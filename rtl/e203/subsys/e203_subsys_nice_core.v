@@ -198,80 +198,86 @@ module e203_subsys_nice_core (
    
    // Combinational signals for counter update
    wire lbuf_cnt_last   = (lbuf_cnt == clonum);
-   wire lbuf_cnt_clr    = custom3_lbuf & nice_req_hsked;  // Clear counter when a new lbuf op is accepted
+   //wire lbuf_cnt_clr    = custom3_lbuf & nice_req_hsked;  // Clear counter when a new lbuf op is accepted
    wire lbuf_icb_rsp_hs = state_is_lbuf & nice_icb_rsp_hsked; // Memory response handshake in LBUF state
    wire lbuf_cnt_incr   = lbuf_icb_rsp_hs & ~lbuf_cnt_last;   // Increment counter if handshake occurs and counter is not full
-   
-   // Next value for the counter: clear if new op, increment if handshake occurs, otherwise hold value
-   wire [ROWBUF_IDX_W-1:0] lbuf_cnt_nxt = lbuf_cnt_clr ? 0 :
-                                         (lbuf_cnt_incr ? lbuf_cnt + 1'b1 : lbuf_cnt);
-   
+   // Generate a signal indicating the last memory response handshake in LBUF state
+   assign lbuf_icb_rsp_hsked_last = lbuf_icb_rsp_hs & lbuf_cnt_last; // and use in FSM
+
    // Sequential block updating the counter
    always @(posedge nice_clk or negedge nice_rst_n) begin
      if (!nice_rst_n)
        lbuf_cnt <= 0;
+     else if (lbuf_icb_rsp_hsked_last)
+       lbuf_cnt <= 0;
+     else if (lbuf_cnt_incr)
+       lbuf_cnt <= lbuf_cnt + 1;
      else
-       lbuf_cnt <= lbuf_cnt_nxt;
+       lbuf_cnt <= lbuf_cnt;
    end
    
-   // Generate a signal indicating the last memory response handshake in LBUF state
-   assign lbuf_icb_rsp_hsked_last = lbuf_icb_rsp_hs & lbuf_cnt_last;
-   
+   // Valid signals
    // Generate response valid: asserted when in LBUF state, counter is full, and the memory response is valid
    wire nice_rsp_valid_lbuf = state_is_lbuf & lbuf_cnt_last & nice_icb_rsp_valid;
-   
    // Generate memory command valid: asserted in LBUF state when counter is not yet full
    wire nice_icb_cmd_valid_lbuf = state_is_lbuf & (lbuf_cnt < clonum);
    
    //////////// 2. custom3_sbuf
-   wire [ROWBUF_IDX_W-1:0] sbuf_cnt_r; 
-   wire [ROWBUF_IDX_W-1:0] sbuf_cnt_nxt; 
-   wire sbuf_cnt_clr;
-   wire sbuf_cnt_incr;
-   wire sbuf_cnt_ena;
-   wire sbuf_cnt_last;
-   wire sbuf_icb_cmd_hsked;
-   wire sbuf_icb_rsp_hsked;
-   wire nice_rsp_valid_sbuf;
-   wire nice_icb_cmd_valid_sbuf;
+   reg [ROWBUF_IDX_W-1:0] sbuf_cnt;
+
+   // Generate handshake signals for SBUF
+   // The memory response handshake is valid only in SBUF state.
+   wire sbuf_icb_rsp_hsked = state_is_sbuf & nice_icb_rsp_hsked;
+   // Determine if the SBUF counter has reached the fixed clonum
+   wire sbuf_cnt_last = (sbuf_cnt == clonum);
+   // Increment counter when a memory response handshake occurs
+   wire sbuf_cnt_incr = sbuf_icb_rsp_hsked & ~sbuf_cnt_last;
+   // Signal asserted when the last memory response handshake is received
+   assign sbuf_icb_rsp_hsked_last = sbuf_icb_rsp_hsked & sbuf_cnt_last; // and use in FSM
+   
+   // SBUF counter update: clear when last response handshake is received,
+   // increment when a response handshake occurs and the counter is not full.
+   always @(posedge nice_clk or negedge nice_rst_n) begin
+     if (!nice_rst_n)
+       sbuf_cnt <= 0;
+     else if (sbuf_icb_rsp_hsked_last)
+       sbuf_cnt <= 0;
+     else if (sbuf_cnt_incr)
+       sbuf_cnt <= sbuf_cnt + 1;
+     else
+       sbuf_cnt <= sbuf_cnt;
+   end
+   
+   // Valid signals
+   // Generate SBUF response valid signal: asserted when in SBUF state, the counter is full, and the memory response is valid.
+   wire nice_rsp_valid_sbuf = state_is_sbuf & sbuf_cnt_last & nice_icb_rsp_valid;
+   
    wire nice_icb_cmd_hsked;
 
-   assign sbuf_icb_cmd_hsked = (state_is_sbuf | (state_is_idle & custom3_sbuf)) & nice_icb_cmd_hsked;
-   assign sbuf_icb_rsp_hsked = state_is_sbuf & nice_icb_rsp_hsked;
-   assign sbuf_icb_rsp_hsked_last = sbuf_icb_rsp_hsked & sbuf_cnt_last;
-   assign sbuf_cnt_last = (sbuf_cnt_r == clonum);
-   //assign sbuf_cnt_clr = custom3_sbuf & nice_req_hsked;
-   assign sbuf_cnt_clr = sbuf_icb_rsp_hsked_last;
-   assign sbuf_cnt_incr = sbuf_icb_rsp_hsked & ~sbuf_cnt_last;
-   assign sbuf_cnt_ena = sbuf_cnt_clr | sbuf_cnt_incr;
-   assign sbuf_cnt_nxt =   ({ROWBUF_IDX_W{sbuf_cnt_clr }} & {ROWBUF_IDX_W{1'b0}})
-                         | ({ROWBUF_IDX_W{sbuf_cnt_incr}} & (sbuf_cnt_r + 1'b1) )
-                         ;
-
-   sirv_gnrl_dfflr #(ROWBUF_IDX_W)   sbuf_cnt_dfflr (sbuf_cnt_ena, sbuf_cnt_nxt, sbuf_cnt_r, nice_clk, nice_rst_n);
-
-   // nice_rsp_valid wait for nice_icb_rsp_valid in SBUF
-   assign nice_rsp_valid_sbuf = state_is_sbuf & sbuf_cnt_last & nice_icb_rsp_valid;
-
-   wire [ROWBUF_IDX_W-1:0] sbuf_cmd_cnt_r; 
-   wire [ROWBUF_IDX_W-1:0] sbuf_cmd_cnt_nxt; 
-   wire sbuf_cmd_cnt_clr;
-   wire sbuf_cmd_cnt_incr;
-   wire sbuf_cmd_cnt_ena;
-   wire sbuf_cmd_cnt_last;
-
-   assign sbuf_cmd_cnt_last = (sbuf_cmd_cnt_r == clonum);
-   assign sbuf_cmd_cnt_clr = sbuf_icb_rsp_hsked_last;
-   assign sbuf_cmd_cnt_incr = sbuf_icb_cmd_hsked & ~sbuf_cmd_cnt_last;
-   assign sbuf_cmd_cnt_ena = sbuf_cmd_cnt_clr | sbuf_cmd_cnt_incr;
-   assign sbuf_cmd_cnt_nxt =   ({ROWBUF_IDX_W{sbuf_cmd_cnt_clr }} & {ROWBUF_IDX_W{1'b0}})
-                             | ({ROWBUF_IDX_W{sbuf_cmd_cnt_incr}} & (sbuf_cmd_cnt_r + 1'b1) )
-                             ;
-   sirv_gnrl_dfflr #(ROWBUF_IDX_W)   sbuf_cmd_cnt_dfflr (sbuf_cmd_cnt_ena, sbuf_cmd_cnt_nxt, sbuf_cmd_cnt_r, nice_clk, nice_rst_n);
-
-   // nice_icb_cmd_valid sets when sbuf_cmd_cnt_r is not full in SBUF
-   assign nice_icb_cmd_valid_sbuf = (state_is_sbuf & (sbuf_cmd_cnt_r <= clonum) & (sbuf_cnt_r != clonum));
-
+   // SBUF command counter: tracks the number of memory commands issued in SBUF state.
+   reg [ROWBUF_IDX_W-1:0] sbuf_cmd_cnt;
+   wire sbuf_cmd_cnt_last = (sbuf_cmd_cnt == clonum);
+   
+   // SBUF command handshake: same as above from the memory command side.
+   wire sbuf_icb_cmd_hsked = ((state_is_sbuf) | (state_is_idle & custom3_sbuf)) & nice_icb_cmd_hsked;
+   
+   // SBUF command counter update: clear when the last memory response handshake occurs,
+   // increment when a memory command handshake occurs and the command counter is not full.
+   always @(posedge nice_clk or negedge nice_rst_n) begin
+     if (!nice_rst_n)
+       sbuf_cmd_cnt <= 0;
+     else if (sbuf_icb_rsp_hsked_last)
+       sbuf_cmd_cnt <= 0;
+     else if (sbuf_icb_cmd_hsked && !sbuf_cmd_cnt_last)
+       sbuf_cmd_cnt <= sbuf_cmd_cnt + 1;
+     else
+       sbuf_cmd_cnt <= sbuf_cmd_cnt;
+   end
+   
+   // Generate memory command valid signal for SBUF: asserted in SBUF state when the command counter
+   // is not full and the response counter has not yet reached clonum.
+   wire nice_icb_cmd_valid_sbuf = state_is_sbuf & (sbuf_cmd_cnt <= clonum) & (sbuf_cnt != clonum);
+   
 
    //////////// 3. custom3_rowsum
    // rowbuf counter 
@@ -459,7 +465,7 @@ module e203_subsys_nice_core (
    //assign nice_icb_rsp_ready = state_is_ldst_rsp & nice_rsp_ready; 
    // rsp always ready
    assign nice_icb_rsp_ready = 1'b1; 
-   wire [ROWBUF_IDX_W-1:0] sbuf_idx = sbuf_cmd_cnt_r; 
+   wire [ROWBUF_IDX_W-1:0] sbuf_idx = sbuf_cmd_cnt; 
 
    assign nice_icb_cmd_valid =   (state_is_idle & nice_req_valid & custom_mem_op)
                               | nice_icb_cmd_valid_lbuf
