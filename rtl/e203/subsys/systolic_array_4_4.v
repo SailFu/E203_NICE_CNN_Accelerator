@@ -150,7 +150,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
-		.PE_en_up          (array_en_up_0_2),
+		.PE_en_up          (array_en_up_0_3),
 		.PE_en_left        (array_en_0_2_to_0_3),
 		.PE_en_down        (array_en_0_3_to_1_3),
 

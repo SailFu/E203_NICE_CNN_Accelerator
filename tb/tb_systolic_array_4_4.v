@@ -115,6 +115,9 @@ module tb_systolic_array_4_4;
   
   // Stimulus signal generation
   initial begin
+    $display("*********************************");
+    $display("*********START SIMULATION********");
+    $display("*********************************");
     // set 0
     array_en_left_0_0   = 0;
     array_en_left_1_0   = 0;
@@ -246,7 +249,18 @@ module tb_systolic_array_4_4;
 
     #1000;
 
+    $display("*********************************");
+    $display("**********END SIMULATION*********");
+    $display("*********************************");
+
     $finish;
   end
+
+
+  initial begin
+    $fsdbDumpfile("tb_systolic_array_4_4.fsdb");
+    $fsdbDumpvars(0, tb_systolic_array_4_4, "+mda");
+  end
+
 
 endmodule
