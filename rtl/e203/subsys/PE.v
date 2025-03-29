@@ -15,6 +15,7 @@ module PE  #(
     input  wire        PE_rst_n,
 
     // control
+    input  wire        PE_mode,      // fix weight
     input  wire        PE_en_up,     // store mode
     input  wire        PE_en_left,   // calculation mode
     output wire        PE_en_right,
@@ -34,7 +35,6 @@ module PE  #(
   reg signed [DATA_WIDTH-1:0] data_down_reg;
 
   reg signed [DATA_WIDTH-1:0] weight_reg;
-  reg signed [DATA_WIDTH-1:0] sum_reg;
   
   always @(posedge PE_clk or negedge PE_rst_n)
   begin
@@ -44,22 +44,20 @@ module PE  #(
       data_right_reg <= {DATA_WIDTH{1'b0}};
       data_down_reg <= {DATA_WIDTH{1'b0}};
       weight_reg <= {DATA_WIDTH{1'b0}};
-      sum_reg <= {DATA_WIDTH{1'b0}};
     end
 
     else begin
-      if(PE_en_up) begin     // store mode
+      if(PE_en_up & PE_mode) begin             // store mode
         weight_reg <= PE_data_up;
-        data_down_reg <= weight_reg;
+        data_down_reg <= PE_data_up;
         en_down_reg <= 1'b1;
       end else begin
         en_down_reg <= 1'b0;
       end
 
-      if(PE_en_left) begin   // calculation mode
+      if(PE_en_left) begin                     // calculation mode
         data_right_reg <= PE_data_left;
-        data_down_reg <= (PE_data_left * weight_reg) + sum_reg;
-        sum_reg <= PE_data_up;
+        data_down_reg <= (PE_data_left * weight_reg) + PE_data_up;
         en_right_reg <= 1'b1;
       end else begin
         en_right_reg <= 1'b0;

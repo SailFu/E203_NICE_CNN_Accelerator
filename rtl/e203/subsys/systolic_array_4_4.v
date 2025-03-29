@@ -42,7 +42,14 @@ module systolic_array_4_4 #(
 		output wire [DATA_WIDTH-1:0]   array_data_down_3_0,
 		output wire [DATA_WIDTH-1:0]   array_data_down_3_1,
 		output wire [DATA_WIDTH-1:0]   array_data_down_3_2,
-		output wire [DATA_WIDTH-1:0]   array_data_down_3_3
+		output wire [DATA_WIDTH-1:0]   array_data_down_3_3,
+
+		// control
+		input wire                     array_mode_0_0, array_mode_0_1, array_mode_0_2, array_mode_0_3,
+		input wire                     array_mode_1_0, array_mode_1_1, array_mode_1_2, array_mode_1_3,
+		input wire                     array_mode_2_0, array_mode_2_1, array_mode_2_2, array_mode_2_3,
+		input wire                     array_mode_3_0, array_mode_3_1, array_mode_3_2, array_mode_3_3
+		
   );
 
 	wire array_en_0_0_to_0_1;
@@ -102,6 +109,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_0_0),
 		.PE_en_up          (array_en_up_0_0),
 		.PE_en_left        (array_en_left_0_0),
 		.PE_en_right       (array_en_0_0_to_0_1),
@@ -118,6 +126,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_0_1),
 		.PE_en_up          (array_en_up_0_1),
 		.PE_en_left        (array_en_0_0_to_0_1),
 		.PE_en_right       (array_en_0_1_to_0_2),
@@ -134,6 +143,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_0_2),
 		.PE_en_up          (array_en_up_0_2),
 		.PE_en_left        (array_en_0_1_to_0_2),
 		.PE_en_right       (array_en_0_2_to_0_3),
@@ -149,7 +159,8 @@ module systolic_array_4_4 #(
 	PE_r #(.DATA_WIDTH(DATA_WIDTH)) PE_0_3 (
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
-
+		
+		.PE_mode					 (array_mode_0_3),
 		.PE_en_up          (array_en_up_0_3),
 		.PE_en_left        (array_en_0_2_to_0_3),
 		.PE_en_down        (array_en_0_3_to_1_3),
@@ -164,6 +175,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_1_0),
 		.PE_en_up          (array_en_0_0_to_1_0),
 		.PE_en_left        (array_en_left_1_0),
 		.PE_en_right       (array_en_1_0_to_1_1),
@@ -180,6 +192,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_1_1),
 		.PE_en_up          (array_en_0_1_to_1_1),
 		.PE_en_left        (array_en_1_0_to_1_1),
 		.PE_en_right       (array_en_1_1_to_1_2),
@@ -196,6 +209,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_1_2),
 		.PE_en_up          (array_en_0_2_to_1_2),
 		.PE_en_left        (array_en_1_1_to_1_2),
 		.PE_en_right       (array_en_1_2_to_1_3),
@@ -212,6 +226,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_1_3),
 		.PE_en_up          (array_en_0_3_to_1_3),
 		.PE_en_left        (array_en_1_2_to_1_3),
 		.PE_en_down        (array_en_1_3_to_2_3),
@@ -225,7 +240,8 @@ module systolic_array_4_4 #(
 	PE #(.DATA_WIDTH(DATA_WIDTH)) PE_2_0 (
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
-
+		
+		.PE_mode					 (array_mode_2_0),
 		.PE_en_up          (array_en_1_0_to_2_0),
 		.PE_en_left        (array_en_left_2_0),
 		.PE_en_right       (array_en_2_0_to_2_1),
@@ -242,6 +258,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_2_1),
 		.PE_en_up          (array_en_1_1_to_2_1),
 		.PE_en_left        (array_en_2_0_to_2_1),
 		.PE_en_right       (array_en_2_1_to_2_2),
@@ -258,6 +275,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_2_2),
 		.PE_en_up          (array_en_1_2_to_2_2),
 		.PE_en_left        (array_en_2_1_to_2_2),
 		.PE_en_right       (array_en_2_2_to_2_3),
@@ -274,6 +292,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_2_3),
 		.PE_en_up          (array_en_1_3_to_2_3),
 		.PE_en_left        (array_en_2_2_to_2_3),
 		.PE_en_down        (array_en_2_3_to_3_3),
@@ -288,6 +307,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_3_0),
 		.PE_en_up          (array_en_2_0_to_3_0),
 		.PE_en_left        (array_en_left_3_0),
 		.PE_en_right       (array_en_3_0_to_3_1),
@@ -304,6 +324,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_3_1),
 		.PE_en_up          (array_en_2_1_to_3_1),
 		.PE_en_left        (array_en_3_0_to_3_1),
 		.PE_en_right       (array_en_3_1_to_3_2),
@@ -320,6 +341,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_3_2),
 		.PE_en_up          (array_en_2_2_to_3_2),
 		.PE_en_left        (array_en_3_1_to_3_2),
 		.PE_en_right       (array_en_3_2_to_3_3),
@@ -336,6 +358,7 @@ module systolic_array_4_4 #(
 		.PE_clk            (array_clk),
 		.PE_rst_n          (array_rst_n),
 
+		.PE_mode					 (array_mode_3_3),
 		.PE_en_up          (array_en_2_3_to_3_3),
 		.PE_en_left        (array_en_3_2_to_3_3),
 		.PE_en_down        (array_en_down_3_3),
