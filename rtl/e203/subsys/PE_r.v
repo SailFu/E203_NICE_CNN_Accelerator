@@ -21,30 +21,30 @@ module PE_r  #(
   output wire        PE_en_down,
 
   // data
-  input  wire [DATA_WIDTH-1:0]      PE_data_up,
-  input  wire [DATA_WIDTH-1:0]      PE_data_left,
-  //output wire [DATA_WIDTH-1:0]      PE_data_right,
-  output wire [DATA_WIDTH-1:0]      PE_data_down
+  input  wire signed [DATA_WIDTH-1:0]      PE_data_up,
+  input  wire signed [DATA_WIDTH-1:0]      PE_data_left,
+  //output wire signed [DATA_WIDTH-1:0]      PE_data_right,
+  output wire signed [DATA_WIDTH-1:0]      PE_data_down
 );
 
 
 //reg en_right_reg;
 reg en_down_reg;
-//reg [DATA_WIDTH-1:0] data_right_reg;
-reg [DATA_WIDTH-1:0] data_down_reg;
+//reg signed [DATA_WIDTH-1:0] data_right_reg;
+reg signed [DATA_WIDTH-1:0] data_down_reg;
 
-reg [DATA_WIDTH-1:0] weight_reg;
-reg [DATA_WIDTH-1:0] sum_reg;
+reg signed [DATA_WIDTH-1:0] weight_reg;
+reg signed [DATA_WIDTH-1:0] sum_reg;
 
 always @(posedge PE_clk or negedge PE_rst_n)
 begin
   if(!PE_rst_n) begin
     en_down_reg <= 1'b0;
     //en_right_reg <= 1'b0;
-    //data_right_reg <= 0;
-    data_down_reg <= 0;
-    weight_reg <= 0;
-    sum_reg <= 0;
+    //data_right_reg <= {DATA_WIDTH{1'b0}};
+    data_down_reg <= {DATA_WIDTH{1'b0}};
+    weight_reg <= {DATA_WIDTH{1'b0}};
+    sum_reg <= {DATA_WIDTH{1'b0}};
   end
 
   else begin
