@@ -33,22 +33,22 @@ module tb_systolic_array_4_4;
   // | 9  10 11 12 |
   // | 13 14 15 16 |
   // The storage matrix A needs to be transposed => A'
-  localparam signed [DATA_WIDTH-1:0] store_0_0 = 1;
-  localparam signed [DATA_WIDTH-1:0] store_0_1 = 5;
-  localparam signed [DATA_WIDTH-1:0] store_0_2 = 9;
-  localparam signed [DATA_WIDTH-1:0] store_0_3 = 13;
+  localparam signed [DATA_WIDTH-1:0] store_0_0 = -1;
   localparam signed [DATA_WIDTH-1:0] store_1_0 = 2;
-  localparam signed [DATA_WIDTH-1:0] store_1_1 = 6;
-  localparam signed [DATA_WIDTH-1:0] store_1_2 = 10;
-  localparam signed [DATA_WIDTH-1:0] store_1_3 = 14;
   localparam signed [DATA_WIDTH-1:0] store_2_0 = 3;
-  localparam signed [DATA_WIDTH-1:0] store_2_1 = 7;
-  localparam signed [DATA_WIDTH-1:0] store_2_2 = 11;
-  localparam signed [DATA_WIDTH-1:0] store_2_3 = 15;
   localparam signed [DATA_WIDTH-1:0] store_3_0 = 4;
+  localparam signed [DATA_WIDTH-1:0] store_0_1 = 5;
+  localparam signed [DATA_WIDTH-1:0] store_1_1 = -6;
+  localparam signed [DATA_WIDTH-1:0] store_2_1 = 7;
   localparam signed [DATA_WIDTH-1:0] store_3_1 = 8;
+  localparam signed [DATA_WIDTH-1:0] store_0_2 = 9;
+  localparam signed [DATA_WIDTH-1:0] store_1_2 = -10;
+  localparam signed [DATA_WIDTH-1:0] store_2_2 = 11;
   localparam signed [DATA_WIDTH-1:0] store_3_2 = 12;
-  localparam signed [DATA_WIDTH-1:0] store_3_3 = 16;
+  localparam signed [DATA_WIDTH-1:0] store_0_3 = 13;
+  localparam signed [DATA_WIDTH-1:0] store_1_3 = 14;
+  localparam signed [DATA_WIDTH-1:0] store_2_3 = 15;
+  localparam signed [DATA_WIDTH-1:0] store_3_3 = -16;
 
   // Matrix B 4*3
   // | 1  2  3  |
@@ -56,7 +56,7 @@ module tb_systolic_array_4_4;
   // | 7  8  9  |
   // | 10 11 12 |
   localparam signed [DATA_WIDTH-1:0] matrix_0_0 = 1;
-  localparam signed [DATA_WIDTH-1:0] matrix_0_1 = 2;
+  localparam signed [DATA_WIDTH-1:0] matrix_0_1 = -2;
   localparam signed [DATA_WIDTH-1:0] matrix_0_2 = 3;
   localparam signed [DATA_WIDTH-1:0] matrix_1_0 = 4;
   localparam signed [DATA_WIDTH-1:0] matrix_1_1 = 5;
@@ -65,7 +65,7 @@ module tb_systolic_array_4_4;
   localparam signed [DATA_WIDTH-1:0] matrix_2_1 = 8;
   localparam signed [DATA_WIDTH-1:0] matrix_2_2 = 9;
   localparam signed [DATA_WIDTH-1:0] matrix_3_0 = 10;
-  localparam signed [DATA_WIDTH-1:0] matrix_3_1 = 11;
+  localparam signed [DATA_WIDTH-1:0] matrix_3_1 = -11;
   localparam signed [DATA_WIDTH-1:0] matrix_3_2 = 12;
 
   // the A * B output should be
