@@ -61,11 +61,26 @@ __STATIC_FORCEINLINE int custom_rowsum(int addr)
 }
 
 
+// custom mul_load
+__STATIC_FORCEINLINE void custom_mul_load(int addr1, int addr2)
+{
+    asm volatile (
+        ".insn r 0x7b, 1, 1, x0, %0, %1"
+        :
+        : "r"(addr1), "r"(addr2)
+    );
+}
+
+
+
 // normal test case without NICE accelerator.
 int normal_case(unsigned int array[ROW_LEN][COL_LEN]);
 
 // teat case using NICE accelerator.
 int nice_case(unsigned int array[ROW_LEN][COL_LEN]);
+
+void nice_mul(int array1[4][4], int array2[4][3]);
+
 
 #endif
 

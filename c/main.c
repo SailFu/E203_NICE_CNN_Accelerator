@@ -8,6 +8,20 @@
 
 int main(void)
 {
+   int matrix_A[4][4] = {{ 1,   2,   3,   4  },
+                         { 5,   6,   7,   8  },
+                         { 9,   10,  11,  12 },
+                         { 13,  14,  15,  16 }};
+                
+   int matrix_B[4][3] = {{ 1,   2,   3  },
+                         { 4,   5,   6  },
+                         { 7,   8,   9  },
+                         { 10,  11,  12 }};
+
+   nice_mul(matrix_A, matrix_B);
+
+
+/*
    int i=100;
    int arr[4]={1,2,3,4};
    unsigned int array[ROW_LEN][COL_LEN]=
@@ -56,6 +70,6 @@ int main(void)
 
 
    printf("**********************************************\n\n"); 
-
+*/
    return 0;
 }

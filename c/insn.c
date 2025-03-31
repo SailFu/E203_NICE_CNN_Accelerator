@@ -60,3 +60,12 @@ int nice_case(unsigned int array[ROW_LEN][COL_LEN])
   return 0;
 }
 
+
+void nice_mul(int array1[4][4], int array2[4][3])
+{
+  custom_mul_load((int)array1[0], (int)array2[0]);
+  
+  printf("array addresses: %p, %p\n", (int)array1[0], (int)array2[0]);
+
+}
+
