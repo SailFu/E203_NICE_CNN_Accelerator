@@ -12,21 +12,24 @@
 module e203_subsys_nice_core (
     // System
     input                         nice_clk             ,
-    input                         nice_rst_n	          ,
-    output                        nice_active	      ,
-    output                        nice_mem_holdup	  ,
+    input                         nice_rst_n	         ,
+    output                        nice_active	         ,
+    output                        nice_mem_holdup	     ,
     //    output                        nice_rsp_err_irq	  ,
+
     // Control cmd_req
     input                         nice_req_valid       ,
     output                        nice_req_ready       ,
     input  [`E203_XLEN-1:0]       nice_req_inst        ,
     input  [`E203_XLEN-1:0]       nice_req_rs1         ,
     input  [`E203_XLEN-1:0]       nice_req_rs2         ,
+
     // Control cmd_rsp
     output                        nice_rsp_valid       ,
     input                         nice_rsp_ready       ,
     output [`E203_XLEN-1:0]       nice_rsp_rdat        ,
-    output                        nice_rsp_err    	  ,
+    output                        nice_rsp_err    	   ,
+
     // Memory lsu_req
     output                        nice_icb_cmd_valid   ,
     input                         nice_icb_cmd_ready   ,
@@ -35,6 +38,7 @@ module e203_subsys_nice_core (
     output [`E203_XLEN-1:0]       nice_icb_cmd_wdata   ,
     //    output [`E203_XLEN_MW-1:0]     nice_icb_cmd_wmask   ,  //
     output [1:0]                  nice_icb_cmd_size    ,
+
     // Memory lsu_rsp
     input                         nice_icb_rsp_valid   ,
     output                        nice_icb_rsp_ready   ,
@@ -94,34 +98,42 @@ module e203_subsys_nice_core (
   //     .insn r opcode, func3, func7, rd, rs1, rs2
   ////////////////////////////////////////////////////////////
   wire custom3 = (opcode == 7'b1111011);
-  wire custom3_lbuf   = custom3 && (func3 == 3'b010) && (func7 == 7'b0000001);
-  wire custom3_sbuf   = custom3 && (func3 == 3'b010) && (func7 == 7'b0000010);
-  wire custom3_rowsum = custom3 && (func3 == 3'b110) && (func7 == 7'b0000110);
+  wire custom3_lbuf       = custom3 && (func3 == 3'b010) && (func7 == 7'b0000001);
+  wire custom3_sbuf       = custom3 && (func3 == 3'b010) && (func7 == 7'b0000010);
+  wire custom3_rowsum     = custom3 && (func3 == 3'b110) && (func7 == 7'b0000110);
+  wire custom3_mul_load   = custom3 && (func3 == 3'b001) && (func7 == 7'b0000001);
+  wire custom3_mul_cal    = custom3 && (func3 == 3'b001) && (func7 == 7'b0000010);
+  wire custom3_mul_store  = custom3 && (func3 == 3'b001) && (func7 == 7'b0000011);
 
 
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
   ////////////////////////////////////////////////////////////
-  wire custom_multi_cyc_op = custom3_lbuf | custom3_sbuf | custom3_rowsum;
+  wire custom_multi_cyc_op = custom3_lbuf | custom3_sbuf | custom3_rowsum | custom3_mul_load | custom3_mul_cal | custom3_mul_store;
   // need access memory
-  wire custom_mem_op = custom3_lbuf | custom3_sbuf | custom3_rowsum;
+  wire custom_mem_op       = custom3_lbuf | custom3_sbuf | custom3_rowsum | custom3_mul_load | custom3_mul_store;
 
   ////////////////////////////////////////////////////////////
   // NICE FSM
   ////////////////////////////////////////////////////////////
-  localparam NICE_FSM_WIDTH = 2;
-  localparam IDLE     = 2'd0;
-  localparam LBUF     = 2'd1;
-  localparam SBUF     = 2'd2;
-  localparam ROWSUM   = 2'd3;
+  localparam IDLE      = 4'd0;
+  localparam LBUF      = 4'd1;
+  localparam SBUF      = 4'd2;
+  localparam ROWSUM    = 4'd3;
+  localparam MUL_LOAD  = 4'd4;
+  localparam MUL_CAL   = 4'd5;
+  localparam MUL_STORE = 4'd6;
 
   // FSM state register
-  reg [NICE_FSM_WIDTH-1:0] state;
+  integer state;
 
-  wire state_is_idle     = (state == IDLE);
-  wire state_is_lbuf     = (state == LBUF);
-  wire state_is_sbuf     = (state == SBUF);
-  wire state_is_rowsum   = (state == ROWSUM);
+  wire state_is_idle       = (state == IDLE);
+  wire state_is_lbuf       = (state == LBUF);
+  wire state_is_sbuf       = (state == SBUF);
+  wire state_is_rowsum     = (state == ROWSUM);
+  wire state_is_mul_load   = (state == MUL_LOAD);
+  wire state_is_mul_cal    = (state == MUL_CAL);
+  wire state_is_mul_store  = (state == MUL_STORE);
 
   // handshake success signals
   wire nice_req_hsked;
@@ -132,6 +144,9 @@ module e203_subsys_nice_core (
   wire lbuf_icb_rsp_hsked_last;
   wire sbuf_icb_rsp_hsked_last;
   wire rowsum_done;
+  wire mul_load_done;
+  wire mul_cal_done;
+  wire mul_store_done;
 
   // FSM state update using behavioral description
   always @(posedge nice_clk or negedge nice_rst_n)
@@ -145,7 +160,7 @@ module e203_subsys_nice_core (
         // transition to the corresponding state.
         IDLE:
         begin
-          if (nice_req_hsked && (custom3_lbuf || custom3_sbuf || custom3_rowsum))
+          if (nice_req_hsked && custom_multi_cyc_op)
           begin
             if (custom3_lbuf)
               state <= LBUF;
@@ -153,6 +168,14 @@ module e203_subsys_nice_core (
               state <= SBUF;
             else if (custom3_rowsum)
               state <= ROWSUM;
+            else if (custom3_mul_load)
+              state <= MUL_LOAD;
+            else if (custom3_mul_cal)
+              state <= MUL_CAL;
+            else if (custom3_mul_store)
+              state <= MUL_STORE;
+            else
+              state <= IDLE;
           end
           else
           begin
@@ -185,6 +208,30 @@ module e203_subsys_nice_core (
             state <= IDLE;
           else
             state <= ROWSUM;
+        end
+        
+        MUL_LOAD:
+        begin
+          if (mul_load_done)
+            state <= IDLE;
+          else
+            state <= MUL_LOAD;
+        end
+
+        MUL_CAL:
+        begin
+          if (mul_cal_done)
+            state <= IDLE;
+          else
+            state <= MUL_CAL;
+        end
+
+        MUL_STORE:
+        begin
+          if (mul_store_done)
+            state <= IDLE;
+          else
+            state <= MUL_STORE;
         end
 
         default:
@@ -411,6 +458,42 @@ module e203_subsys_nice_core (
   // It is asserted in ROWSUM state when the received data index is less than clonum and
   // no intermediate accumulation is pending.
   wire nice_icb_cmd_valid_rowsum = state_is_rowsum & (rcv_data_buf_idx < clonum) & ~rowsum_acc_flg;
+
+
+  //////////// 4. custom3_mul_load
+  localparam matrix_size_A    = 16;
+  localparam matrix_size_B    = 12;
+  localparam matrix_size_sum  = matrix_size_A + matrix_size_B;
+
+  integer mul_load_cnt;
+
+  wire mul_load_cnt_A       = (mul_load_cnt < matrix_size_A);
+  wire mul_load_cnt_B       = (mul_load_cnt >= matrix_size_A) && (mul_load_cnt < matrix_size_sum);
+  wire mul_load_cnt_done    = (mul_load_cnt == matrix_size_sum);
+  wire mul_load_icb_rsp_hs  = state_is_mul_load & nice_icb_rsp_hsked;
+  wire mul_load_cnt_incr    = mul_load_icb_rsp_hs & ~mul_load_cnt_done;
+  assign mul_load_done      = mul_load_icb_rsp_hs & mul_load_cnt_done;
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      mul_load_cnt <= 0;
+    else if (mul_load_done)
+      mul_load_cnt <= 0;
+    else if (mul_load_cnt_incr)
+      mul_load_cnt <= mul_load_cnt + 1;
+    else
+      mul_load_cnt <= mul_load_cnt;
+  end
+
+  // valid signals
+  wire nice_rsp_valid_mul_load     = state_is_mul_load & mul_load_cnt_done & nice_icb_rsp_valid;
+  wire nice_icb_cmd_valid_mul_load = state_is_mul_load & (mul_load_cnt < matrix_size_sum);
+
+
+
+
+
+
 
 
   //////////// rowbuf
