@@ -25,7 +25,6 @@
 __STATIC_FORCEINLINE void custom_lbuf(int addr)
 {
     int zero = 0;
-    
     asm volatile (
        ".insn r 0x7b, 2, 1, x0, %1, x0"
            :"=r"(zero)
@@ -37,7 +36,6 @@ __STATIC_FORCEINLINE void custom_lbuf(int addr)
 __STATIC_FORCEINLINE void custom_sbuf(int addr)
 {
     int zero = 0;
-    
     asm volatile (
        ".insn r 0x7b, 2, 2, x0, %1, x0"
            :"=r"(zero)
@@ -50,7 +48,6 @@ __STATIC_FORCEINLINE void custom_sbuf(int addr)
 __STATIC_FORCEINLINE int custom_rowsum(int addr)
 {
     int rowsum;
-    
     asm volatile (
        ".insn r 0x7b, 6, 6, %0, %1, x0"
              :"=r"(rowsum)
@@ -61,13 +58,26 @@ __STATIC_FORCEINLINE int custom_rowsum(int addr)
 }
 
 
-// custom mul_load
-__STATIC_FORCEINLINE void custom_mul_load(int addr1, int addr2)
+// custom mul_loada
+__STATIC_FORCEINLINE void custom_mul_loada(int addr)
 {
+    int zero = 0;
     asm volatile (
-        ".insn r 0x7b, 1, 1, x0, %0, %1"
-        :
-        : "r"(addr1), "r"(addr2)
+        ".insn r 0x7b, 1, 1, x0, %1, x0"
+            :"=r"(zero)
+            :"r"(addr)
+    );
+}
+
+
+// custom mul_loadb
+__STATIC_FORCEINLINE void custom_mul_loadb(int addr)
+{
+    int zero = 0;
+    asm volatile (
+        ".insn r 0x7b, 1, 2, x0, %1, x0"
+            :"=r"(zero)
+            :"r"(addr)
     );
 }
 

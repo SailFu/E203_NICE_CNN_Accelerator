@@ -8,6 +8,10 @@
 
 int main(void)
 {
+   printf("\n***********************************************\n");
+   printf("***** begin to test the NICE accelerator ******\n");
+   printf("***********************************************\n\n");
+
    int matrix_A[4][4] = {{ 1,   2,   3,   4  },
                          { 5,   6,   7,   8  },
                          { 9,   10,  11,  12 },
@@ -18,7 +22,26 @@ int main(void)
                          { 7,   8,   9  },
                          { 10,  11,  12 }};
 
+   printf("matrix_A:\n");
+   for (int i = 0; i < 4; i++) {
+       for (int j = 0; j < 4; j++) {
+           printf("%5d ", matrix_A[i][j]);
+       }
+       printf("\n");
+   }
+   printf("\nmatrix_B:\n");
+   for (int i = 0; i < 4; i++) {
+       for (int j = 0; j < 3; j++) {
+           printf("%5d ", matrix_B[i][j]);
+       }
+       printf("\n");
+   }
+
    nice_mul(matrix_A, matrix_B);
+
+   printf("\n**************************************************\n");
+   printf("******** end of test the NICE accelerator ********\n");
+   printf("**************************************************\n\n");
 
 
 /*
