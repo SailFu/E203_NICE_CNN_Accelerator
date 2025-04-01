@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -12,15 +12,17 @@ int main(void)
    printf("***** begin to test the NICE accelerator ******\n");
    printf("***********************************************\n\n");
 
-   int matrix_A[4][4] = {{ 1,   2,   3,   4  },
-                         { 5,   6,   7,   8  },
-                         { 9,   10,  11,  12 },
-                         { 13,  14,  15,  16 }};
+   int matrix_A[4][4] = 
+      {{ 1,    2,    3,    4  },
+       { 5,    6,    7,    8  },
+       { 9,    10,   11,   12 },
+       { 13,   14,   15,   16 }};
                 
-   int matrix_B[4][3] = {{ 1,   2,   3  },
-                         { 4,   5,   6  },
-                         { 7,   8,   9  },
-                         { 10,  11,  12 }};
+   int matrix_B[4][3] = 
+      {{ -11,  -12,  -13  },
+       { -14,  -15,  -16  },
+       { -17,  -18,  -19  },
+       { -20,  -21,  -22  }};
 
    printf("matrix_A:\n");
    for (int i = 0; i < 4; i++) {
@@ -37,7 +39,11 @@ int main(void)
        printf("\n");
    }
 
-   nice_mul(matrix_A, matrix_B);
+   custom_mul_loada((uintptr_t)&matrix_A[0][0]);
+   custom_mul_loadb((uintptr_t)&matrix_B[0][0]);
+
+   printf("matrix_A address: %p\n", (void*)&matrix_A[0][0]);
+   printf("matrix_B address: %p\n", (void*)&matrix_B[0][0]);
 
    printf("\n**************************************************\n");
    printf("******** end of test the NICE accelerator ********\n");

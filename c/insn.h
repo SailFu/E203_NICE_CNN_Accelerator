@@ -58,29 +58,26 @@ __STATIC_FORCEINLINE int custom_rowsum(int addr)
 }
 
 
-// custom mul_loada
-__STATIC_FORCEINLINE void custom_mul_loada(int addr)
+__STATIC_FORCEINLINE void custom_mul_loada(uintptr_t addr)
 {
     int zero = 0;
     asm volatile (
         ".insn r 0x7b, 1, 1, x0, %1, x0"
-            :"=r"(zero)
-            :"r"(addr)
+        : "=r"(zero)
+        : "r"(addr)
     );
 }
 
 
-// custom mul_loadb
-__STATIC_FORCEINLINE void custom_mul_loadb(int addr)
+__STATIC_FORCEINLINE void custom_mul_loadb(uintptr_t addr)
 {
     int zero = 0;
     asm volatile (
         ".insn r 0x7b, 1, 2, x0, %1, x0"
-            :"=r"(zero)
-            :"r"(addr)
+        : "=r"(zero)
+        : "r"(addr)
     );
 }
-
 
 
 // normal test case without NICE accelerator.
@@ -89,7 +86,8 @@ int normal_case(unsigned int array[ROW_LEN][COL_LEN]);
 // teat case using NICE accelerator.
 int nice_case(unsigned int array[ROW_LEN][COL_LEN]);
 
-void nice_mul(int array1[4][4], int array2[4][3]);
+
+void nice_mul(volatile unsigned int matrix_A[4][4], volatile unsigned int matrix_B[4][3]);
 
 
 #endif
