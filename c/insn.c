@@ -61,13 +61,13 @@ int nice_case(unsigned int array[ROW_LEN][COL_LEN])
 }
 
 
-void nice_mul(volatile unsigned int matrix_A[4][4], volatile unsigned int matrix_B[4][3])
+void nice_mul(int matrix_A[4][4], int matrix_B[4][3])
 {
-    custom_mul_loada((int)matrix_A[0]);
+  custom_mul_loada((uintptr_t)matrix_A[0]);
+  custom_mul_loadb((uintptr_t)matrix_B[0]);
 
-    custom_mul_loadb((int)matrix_B[0]);
-
-    printf("array addresses: %p, %p\n", (int)matrix_A[0], (int)matrix_B[0]);
+  printf("matrix_A address: %p\n", (void*)matrix_A[0]);
+  printf("matrix_B address: %p\n", (void*)matrix_B[0]);
 
 }
 

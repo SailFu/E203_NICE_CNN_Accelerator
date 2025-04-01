@@ -62,7 +62,7 @@ __STATIC_FORCEINLINE void custom_mul_loada(uintptr_t addr)
 {
     int zero = 0;
     asm volatile (
-        ".insn r 0x7b, 1, 1, x0, %1, x0"
+        ".insn r 0x7b, 2, 8, x0, %1, x0"
         : "=r"(zero)
         : "r"(addr)
     );
@@ -73,7 +73,7 @@ __STATIC_FORCEINLINE void custom_mul_loadb(uintptr_t addr)
 {
     int zero = 0;
     asm volatile (
-        ".insn r 0x7b, 1, 2, x0, %1, x0"
+        ".insn r 0x7b, 2, 9, x0, %1, x0"
         : "=r"(zero)
         : "r"(addr)
     );
@@ -87,7 +87,7 @@ int normal_case(unsigned int array[ROW_LEN][COL_LEN]);
 int nice_case(unsigned int array[ROW_LEN][COL_LEN]);
 
 
-void nice_mul(volatile unsigned int matrix_A[4][4], volatile unsigned int matrix_B[4][3]);
+void nice_mul(int matrix_A[4][4], int matrix_B[4][3]);
 
 
 #endif

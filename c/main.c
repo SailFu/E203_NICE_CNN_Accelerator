@@ -12,12 +12,15 @@ int main(void)
    printf("***** begin to test the NICE accelerator ******\n");
    printf("***********************************************\n\n");
 
+   unsigned int begin_instret, end_instret, instret_normal, instret_nice;
+   unsigned int begin_cycle,   end_cycle,   cycle_normal,   cycle_nice;
+
    int matrix_A[4][4] = 
       {{ 1,    2,    3,    4  },
        { 5,    6,    7,    8  },
        { 9,    10,   11,   12 },
        { 13,   14,   15,   16 }};
-                
+
    int matrix_B[4][3] = 
       {{ -11,  -12,  -13  },
        { -14,  -15,  -16  },
@@ -39,11 +42,18 @@ int main(void)
        printf("\n");
    }
 
-   custom_mul_loada((uintptr_t)&matrix_A[0][0]);
-   custom_mul_loadb((uintptr_t)&matrix_B[0][0]);
+   begin_instret  =  __get_rv_instret();
+   begin_cycle    =  __get_rv_cycle();
 
-   printf("matrix_A address: %p\n", (void*)&matrix_A[0][0]);
-   printf("matrix_B address: %p\n", (void*)&matrix_B[0][0]);
+   nice_mul(matrix_A, matrix_B);
+
+   end_instret    = __get_rv_instret();
+   end_cycle      = __get_rv_cycle();
+   
+   instret_nice = end_instret - begin_instret;
+   cycle_nice   = end_cycle - begin_cycle;
+
+   printf("\t NICE instret: %d, cycle: %d \n", instret_nice, cycle_nice); 
 
    printf("\n**************************************************\n");
    printf("******** end of test the NICE accelerator ********\n");

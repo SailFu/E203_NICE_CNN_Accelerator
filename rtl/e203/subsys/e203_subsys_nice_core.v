@@ -101,9 +101,9 @@ module e203_subsys_nice_core (
   wire custom3_lbuf       = custom3 && (func3 == 3'b010) && (func7 == 7'b0000001);
   wire custom3_sbuf       = custom3 && (func3 == 3'b010) && (func7 == 7'b0000010);
   wire custom3_rowsum     = custom3 && (func3 == 3'b110) && (func7 == 7'b0000110);
-  wire custom3_mul_loada  = custom3 && (func3 == 3'b001) && (func7 == 7'b0000001);
-  wire custom3_mul_loadb  = custom3 && (func3 == 3'b001) && (func7 == 7'b0000010);
-  wire custom3_mul_cals   = custom3 && (func3 == 3'b001) && (func7 == 7'b0000011);
+  wire custom3_mul_loada  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001000);
+  wire custom3_mul_loadb  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001001);
+  wire custom3_mul_cals   = custom3 && (func3 == 3'b110) && (func7 == 7'b0001010);
 
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
