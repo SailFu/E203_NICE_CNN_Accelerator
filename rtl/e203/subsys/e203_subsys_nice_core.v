@@ -54,6 +54,80 @@ module e203_subsys_nice_core (
   localparam PIPE_NUM = 3;
 
 
+  ////////////////////////////////////////////////////////////
+  // SYSTOLIC ARRAY 
+  ////////////////////////////////////////////////////////////
+  parameter DATA_WIDTH = 32;
+
+  // left
+  reg                   array_en_left_0_0,   array_en_left_1_0,   array_en_left_2_0,   array_en_left_3_0;
+  reg [DATA_WIDTH-1:0]  array_data_left_0_0, array_data_left_1_0, array_data_left_2_0, array_data_left_3_0;
+  // up
+  reg                   array_en_up_0_0,     array_en_up_0_1,     array_en_up_0_2,     array_en_up_0_3;
+  reg [DATA_WIDTH-1:0]  array_data_up_0_0,   array_data_up_0_1,   array_data_up_0_2,   array_data_up_0_3;
+  // down
+  reg                   array_en_down_3_0,   array_en_down_3_1,   array_en_down_3_2,   array_en_down_3_3;
+  reg [DATA_WIDTH-1:0]  array_data_down_3_0, array_data_down_3_1, array_data_down_3_2, array_data_down_3_3;
+  // control
+  reg                   array_mode_0_0,      array_mode_0_1,      array_mode_0_2,      array_mode_0_3;
+  reg                   array_mode_1_0,      array_mode_1_1,      array_mode_1_2,      array_mode_1_3;
+  reg                   array_mode_2_0,      array_mode_2_1,      array_mode_2_2,      array_mode_2_3;
+  reg                   array_mode_3_0,      array_mode_3_1,      array_mode_3_2,      array_mode_3_3;
+  
+  systolic_array_4_4 #(
+    .DATA_WIDTH(DATA_WIDTH)
+  ) u_systolic_array_4_4 (
+    .array_clk      (array_clk),
+    .array_rst_n    (array_rst_n),
+    
+    .array_en_left_0_0 (array_en_left_0_0),
+    .array_en_left_1_0 (array_en_left_1_0),
+    .array_en_left_2_0 (array_en_left_2_0),
+    .array_en_left_3_0 (array_en_left_3_0),
+    .array_data_left_0_0 (array_data_left_0_0),
+    .array_data_left_1_0 (array_data_left_1_0),
+    .array_data_left_2_0 (array_data_left_2_0),
+    .array_data_left_3_0 (array_data_left_3_0),
+    
+    .array_en_up_0_0 (array_en_up_0_0),
+    .array_en_up_0_1 (array_en_up_0_1),
+    .array_en_up_0_2 (array_en_up_0_2),
+    .array_en_up_0_3 (array_en_up_0_3),
+    .array_data_up_0_0 (array_data_up_0_0),
+    .array_data_up_0_1 (array_data_up_0_1),
+    .array_data_up_0_2 (array_data_up_0_2),
+    .array_data_up_0_3 (array_data_up_0_3),
+    
+    // down
+    .array_en_down_3_0 (array_en_down_3_0),
+    .array_en_down_3_1 (array_en_down_3_1),
+    .array_en_down_3_2 (array_en_down_3_2),
+    .array_en_down_3_3 (array_en_down_3_3),
+    .array_data_down_3_0 (array_data_down_3_0),
+    .array_data_down_3_1 (array_data_down_3_1),
+    .array_data_down_3_2 (array_data_down_3_2),
+    .array_data_down_3_3 (array_data_down_3_3),
+    
+    .array_mode_0_0 (array_mode_0_0),
+    .array_mode_0_1 (array_mode_0_1),
+    .array_mode_0_2 (array_mode_0_2),
+    .array_mode_0_3 (array_mode_0_3),
+    .array_mode_1_0 (array_mode_1_0),
+    .array_mode_1_1 (array_mode_1_1),
+    .array_mode_1_2 (array_mode_1_2),
+    .array_mode_1_3 (array_mode_1_3),
+    .array_mode_2_0 (array_mode_2_0),
+    .array_mode_2_1 (array_mode_2_1),
+    .array_mode_2_2 (array_mode_2_2),
+    .array_mode_2_3 (array_mode_2_3),
+    .array_mode_3_0 (array_mode_3_0),
+    .array_mode_3_1 (array_mode_3_1),
+    .array_mode_3_2 (array_mode_3_2),
+    .array_mode_3_3 (array_mode_3_3)
+  );
+
+
+
   // here we only use custom3:
   // CUSTOM0 = 7'h0b, R type
   // CUSTOM1 = 7'h2b, R tpye
