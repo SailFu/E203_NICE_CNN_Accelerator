@@ -53,81 +53,6 @@ module e203_subsys_nice_core (
   localparam COL_IDX_W = 4;
   localparam PIPE_NUM = 3;
 
-
-  ////////////////////////////////////////////////////////////
-  // SYSTOLIC ARRAY 
-  ////////////////////////////////////////////////////////////
-  parameter DATA_WIDTH = 32;
-
-  // left
-  reg                   array_en_left_0_0,   array_en_left_1_0,   array_en_left_2_0,   array_en_left_3_0;
-  reg [DATA_WIDTH-1:0]  array_data_left_0_0, array_data_left_1_0, array_data_left_2_0, array_data_left_3_0;
-  // up
-  reg                   array_en_up_0_0,     array_en_up_0_1,     array_en_up_0_2,     array_en_up_0_3;
-  reg [DATA_WIDTH-1:0]  array_data_up_0_0,   array_data_up_0_1,   array_data_up_0_2,   array_data_up_0_3;
-  // down
-  reg                   array_en_down_3_0,   array_en_down_3_1,   array_en_down_3_2,   array_en_down_3_3;
-  reg [DATA_WIDTH-1:0]  array_data_down_3_0, array_data_down_3_1, array_data_down_3_2, array_data_down_3_3;
-  // control
-  reg                   array_mode_0_0,      array_mode_0_1,      array_mode_0_2,      array_mode_0_3;
-  reg                   array_mode_1_0,      array_mode_1_1,      array_mode_1_2,      array_mode_1_3;
-  reg                   array_mode_2_0,      array_mode_2_1,      array_mode_2_2,      array_mode_2_3;
-  reg                   array_mode_3_0,      array_mode_3_1,      array_mode_3_2,      array_mode_3_3;
-  
-  systolic_array_4_4 #(
-    .DATA_WIDTH(DATA_WIDTH)
-  ) u_systolic_array_4_4 (
-    .array_clk      (array_clk),
-    .array_rst_n    (array_rst_n),
-    
-    .array_en_left_0_0 (array_en_left_0_0),
-    .array_en_left_1_0 (array_en_left_1_0),
-    .array_en_left_2_0 (array_en_left_2_0),
-    .array_en_left_3_0 (array_en_left_3_0),
-    .array_data_left_0_0 (array_data_left_0_0),
-    .array_data_left_1_0 (array_data_left_1_0),
-    .array_data_left_2_0 (array_data_left_2_0),
-    .array_data_left_3_0 (array_data_left_3_0),
-    
-    .array_en_up_0_0 (array_en_up_0_0),
-    .array_en_up_0_1 (array_en_up_0_1),
-    .array_en_up_0_2 (array_en_up_0_2),
-    .array_en_up_0_3 (array_en_up_0_3),
-    .array_data_up_0_0 (array_data_up_0_0),
-    .array_data_up_0_1 (array_data_up_0_1),
-    .array_data_up_0_2 (array_data_up_0_2),
-    .array_data_up_0_3 (array_data_up_0_3),
-    
-    // down
-    .array_en_down_3_0 (array_en_down_3_0),
-    .array_en_down_3_1 (array_en_down_3_1),
-    .array_en_down_3_2 (array_en_down_3_2),
-    .array_en_down_3_3 (array_en_down_3_3),
-    .array_data_down_3_0 (array_data_down_3_0),
-    .array_data_down_3_1 (array_data_down_3_1),
-    .array_data_down_3_2 (array_data_down_3_2),
-    .array_data_down_3_3 (array_data_down_3_3),
-    
-    .array_mode_0_0 (array_mode_0_0),
-    .array_mode_0_1 (array_mode_0_1),
-    .array_mode_0_2 (array_mode_0_2),
-    .array_mode_0_3 (array_mode_0_3),
-    .array_mode_1_0 (array_mode_1_0),
-    .array_mode_1_1 (array_mode_1_1),
-    .array_mode_1_2 (array_mode_1_2),
-    .array_mode_1_3 (array_mode_1_3),
-    .array_mode_2_0 (array_mode_2_0),
-    .array_mode_2_1 (array_mode_2_1),
-    .array_mode_2_2 (array_mode_2_2),
-    .array_mode_2_3 (array_mode_2_3),
-    .array_mode_3_0 (array_mode_3_0),
-    .array_mode_3_1 (array_mode_3_1),
-    .array_mode_3_2 (array_mode_3_2),
-    .array_mode_3_3 (array_mode_3_3)
-  );
-
-
-
   // here we only use custom3:
   // CUSTOM0 = 7'h0b, R type
   // CUSTOM1 = 7'h2b, R tpye
@@ -197,7 +122,8 @@ module e203_subsys_nice_core (
   localparam ROWSUM     = 4'd3;
   localparam MUL_LOADA  = 4'd4;
   localparam MUL_LOADB  = 4'd5;
-  localparam MUL_CALS   = 4'd6;
+  localparam MUL_STORE  = 4'd6;
+  localparam MUL_CALS   = 4'd7;
 
   // FSM state register
   integer state;
@@ -207,6 +133,7 @@ module e203_subsys_nice_core (
   wire state_is_sbuf       = (state == SBUF);
   wire state_is_rowsum     = (state == ROWSUM);
   wire state_is_mul_loada  = (state == MUL_LOADA);
+  wire state_is_mul_store  = (state == MUL_STORE);
   wire state_is_mul_loadb  = (state == MUL_LOADB);
   wire state_is_mul_cals   = (state == MUL_CALS);
 
@@ -221,6 +148,7 @@ module e203_subsys_nice_core (
   wire rowsum_done;
   wire mul_loada_done;
   wire mul_loadb_done;
+  wire mul_store_done;
   wire mul_cals_done;
 
   // FSM state update using behavioral description
@@ -296,9 +224,17 @@ module e203_subsys_nice_core (
         MUL_LOADB:
         begin
           if (mul_loadb_done)
-            state <= IDLE;
+            state <= MUL_STORE;
           else
             state <= MUL_LOADB;
+        end
+
+        MUL_STORE:
+        begin
+          if (mul_store_done)
+            state <= IDLE;
+          else
+            state <= MUL_STORE;
         end
 
         MUL_CALS:
@@ -563,6 +499,7 @@ module e203_subsys_nice_core (
 
   //////////// 5. custom3_mul_loadb
   localparam matrix_size_B   = 12;
+  localparam systolic_size   = 4; // systolic array size
 
   integer mul_loadb_cnt;
 
@@ -585,9 +522,6 @@ module e203_subsys_nice_core (
   // valid signals
   wire nice_rsp_valid_mul_loadb     = state_is_mul_loadb & mul_loadb_cnt_done & nice_icb_rsp_valid;
   wire nice_icb_cmd_valid_mul_loadb = state_is_mul_loadb & (mul_loadb_cnt < matrix_size_B);
-
-
-
 
 
   //////////// matrix_A buffer
@@ -616,6 +550,170 @@ module e203_subsys_nice_core (
       end 
   end
 
+
+  ////////////////////////////////////////////////////////////
+  // SYSTOLIC ARRAY 
+  ////////////////////////////////////////////////////////////
+  parameter DATA_WIDTH = 32;
+
+  // left
+  reg                           array_en_left_0_0,   array_en_left_1_0,   array_en_left_2_0,   array_en_left_3_0;
+  reg  signed [DATA_WIDTH-1:0]  array_data_left_0_0, array_data_left_1_0, array_data_left_2_0, array_data_left_3_0;
+  // up
+  reg                           array_en_up_0_0,     array_en_up_0_1,     array_en_up_0_2,     array_en_up_0_3;
+  reg  signed [DATA_WIDTH-1:0]  array_data_up_0_0,   array_data_up_0_1,   array_data_up_0_2,   array_data_up_0_3;
+  // down
+  wire                          array_en_down_3_0,   array_en_down_3_1,   array_en_down_3_2,   array_en_down_3_3;
+  wire signed [DATA_WIDTH-1:0]  array_data_down_3_0, array_data_down_3_1, array_data_down_3_2, array_data_down_3_3;
+  // control
+  reg                           array_mode_0_0,      array_mode_0_1,      array_mode_0_2,      array_mode_0_3;
+  reg                           array_mode_1_0,      array_mode_1_1,      array_mode_1_2,      array_mode_1_3;
+  reg                           array_mode_2_0,      array_mode_2_1,      array_mode_2_2,      array_mode_2_3;
+  reg                           array_mode_3_0,      array_mode_3_1,      array_mode_3_2,      array_mode_3_3;
+  
+  systolic_array_4_4 #(
+    .DATA_WIDTH(DATA_WIDTH)
+  ) u_systolic_array_4_4 (
+    .array_clk      (nice_clk),
+    .array_rst_n    (nice_rst_n),
+    
+    .array_en_left_0_0   (array_en_left_0_0),
+    .array_en_left_1_0   (array_en_left_1_0),
+    .array_en_left_2_0   (array_en_left_2_0),
+    .array_en_left_3_0   (array_en_left_3_0),
+    .array_data_left_0_0 (array_data_left_0_0),
+    .array_data_left_1_0 (array_data_left_1_0),
+    .array_data_left_2_0 (array_data_left_2_0),
+    .array_data_left_3_0 (array_data_left_3_0),
+    
+    .array_en_up_0_0   (array_en_up_0_0),
+    .array_en_up_0_1   (array_en_up_0_1),
+    .array_en_up_0_2   (array_en_up_0_2),
+    .array_en_up_0_3   (array_en_up_0_3),
+    .array_data_up_0_0 (array_data_up_0_0),
+    .array_data_up_0_1 (array_data_up_0_1),
+    .array_data_up_0_2 (array_data_up_0_2),
+    .array_data_up_0_3 (array_data_up_0_3),
+    
+    .array_en_down_3_0   (array_en_down_3_0),
+    .array_en_down_3_1   (array_en_down_3_1),
+    .array_en_down_3_2   (array_en_down_3_2),
+    .array_en_down_3_3   (array_en_down_3_3),
+    .array_data_down_3_0 (array_data_down_3_0),
+    .array_data_down_3_1 (array_data_down_3_1),
+    .array_data_down_3_2 (array_data_down_3_2),
+    .array_data_down_3_3 (array_data_down_3_3),
+    
+    .array_mode_0_0 (array_mode_0_0),
+    .array_mode_0_1 (array_mode_0_1),
+    .array_mode_0_2 (array_mode_0_2),
+    .array_mode_0_3 (array_mode_0_3),
+    .array_mode_1_0 (array_mode_1_0),
+    .array_mode_1_1 (array_mode_1_1),
+    .array_mode_1_2 (array_mode_1_2),
+    .array_mode_1_3 (array_mode_1_3),
+    .array_mode_2_0 (array_mode_2_0),
+    .array_mode_2_1 (array_mode_2_1),
+    .array_mode_2_2 (array_mode_2_2),
+    .array_mode_2_3 (array_mode_2_3),
+    .array_mode_3_0 (array_mode_3_0),
+    .array_mode_3_1 (array_mode_3_1),
+    .array_mode_3_2 (array_mode_3_2),
+    .array_mode_3_3 (array_mode_3_3)
+  );
+
+  integer store_cnt;
+  wire store_cnt_done = (store_cnt == systolic_size);
+  assign mul_store_done = store_cnt_done;
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      store_cnt <= 0;
+    else if (state_is_mul_store) begin
+      if (store_cnt_done)
+        store_cnt <= 0;
+      else
+        store_cnt <= store_cnt + 1;
+    end
+  end
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin                                        
+    if(!nice_rst_n) begin
+      array_en_left_0_0   <= 1'b0; 
+      array_en_left_1_0   <= 1'b0; 
+      array_en_left_2_0   <= 1'b0; 
+      array_en_left_3_0   <= 1'b0; 
+      array_data_left_0_0 <= {DATA_WIDTH{1'b0}};
+      array_data_left_1_0 <= {DATA_WIDTH{1'b0}};
+      array_data_left_2_0 <= {DATA_WIDTH{1'b0}};
+      array_data_left_3_0 <= {DATA_WIDTH{1'b0}};
+      array_en_up_0_0     <= 1'b0;
+      array_en_up_0_1     <= 1'b0;
+      array_en_up_0_2     <= 1'b0;
+      array_en_up_0_3     <= 1'b0;
+      array_data_up_0_0   <= {DATA_WIDTH{1'b0}};
+      array_data_up_0_1   <= {DATA_WIDTH{1'b0}};
+      array_data_up_0_2   <= {DATA_WIDTH{1'b0}};
+      array_data_up_0_3   <= {DATA_WIDTH{1'b0}};
+      array_mode_0_0 <= 1'b0; array_mode_0_1 <= 1'b0; array_mode_0_2 <= 1'b0; array_mode_0_3 <= 1'b0;
+      array_mode_1_0 <= 1'b0; array_mode_1_1 <= 1'b0; array_mode_1_2 <= 1'b0; array_mode_1_3 <= 1'b0;
+      array_mode_2_0 <= 1'b0; array_mode_2_1 <= 1'b0; array_mode_2_2 <= 1'b0; array_mode_2_3 <= 1'b0;
+      array_mode_3_0 <= 1'b0; array_mode_3_1 <= 1'b0; array_mode_3_2 <= 1'b0; array_mode_3_3 <= 1'b0;
+    end
+    else if (state_is_mul_store) begin
+      case (store_cnt)
+        0: begin
+          array_en_up_0_0   <= 1;
+          array_en_up_0_1   <= 1;
+          array_en_up_0_2   <= 1;
+          array_en_up_0_3   <= 1;
+
+          array_data_up_0_0 <= matrix_A_reg[3];
+          array_data_up_0_1 <= matrix_A_reg[7];
+          array_data_up_0_2 <= matrix_A_reg[11];
+          array_data_up_0_3 <= matrix_A_reg[15];
+
+          array_mode_0_0 <= 1; array_mode_0_1 <= 1; array_mode_0_2 <= 1; array_mode_0_3 <= 1;
+          array_mode_1_0 <= 1; array_mode_1_1 <= 1; array_mode_1_2 <= 1; array_mode_1_3 <= 1;
+          array_mode_2_0 <= 1; array_mode_2_1 <= 1; array_mode_2_2 <= 1; array_mode_2_3 <= 1;
+          array_mode_3_0 <= 1; array_mode_3_1 <= 1; array_mode_3_2 <= 1; array_mode_3_3 <= 1;
+        end
+
+        1: begin
+          
+          array_data_up_0_0 <= matrix_A_reg[2];
+          array_data_up_0_1 <= matrix_A_reg[6];
+          array_data_up_0_2 <= matrix_A_reg[10];
+          array_data_up_0_3 <= matrix_A_reg[14];
+        end
+
+        2: begin
+          array_data_up_0_0 <= matrix_A_reg[1];
+          array_data_up_0_1 <= matrix_A_reg[5];
+          array_data_up_0_2 <= matrix_A_reg[9];
+          array_data_up_0_3 <= matrix_A_reg[13];
+        end
+
+        3: begin
+          array_data_up_0_0 <= matrix_A_reg[0];
+          array_data_up_0_1 <= matrix_A_reg[4];
+          array_data_up_0_2 <= matrix_A_reg[8];
+          array_data_up_0_3 <= matrix_A_reg[12];
+        end
+
+        default: begin
+          array_en_up_0_0   <= 0; array_en_up_0_1   <= 0; array_en_up_0_2   <= 0; array_en_up_0_3   <= 0;
+          array_data_up_0_0 <= 0; array_data_up_0_1 <= 0; array_data_up_0_2 <= 0; array_data_up_0_3 <= 0;
+          array_mode_0_0 <= 0; array_mode_0_1 <= 0; array_mode_0_2 <= 0; array_mode_0_3 <= 0;
+          array_mode_1_0 <= 0; array_mode_1_1 <= 0; array_mode_1_2 <= 0; array_mode_1_3 <= 0;
+          array_mode_2_0 <= 0; array_mode_2_1 <= 0; array_mode_2_2 <= 0; array_mode_2_3 <= 0;
+          array_mode_3_0 <= 0; array_mode_3_1 <= 0; array_mode_3_2 <= 0; array_mode_3_3 <= 0;
+        end
+      endcase
+    end
+  end
+
+  
 
   //////////// rowbuf
   // The row buffer supports three access modes:
