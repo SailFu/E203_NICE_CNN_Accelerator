@@ -27,6 +27,8 @@ int main(void)
        { -17,  -18,  -19  },
        { -20,  -21,  -22  }};
 
+   int matrix_C[4][3];
+
    printf("matrix_A:\n");
    for (int i = 0; i < 4; i++) {
        for (int j = 0; j < 4; j++) {
@@ -45,10 +47,18 @@ int main(void)
    begin_instret  =  __get_rv_instret();
    begin_cycle    =  __get_rv_cycle();
 
-   nice_mul(matrix_A, matrix_B);
+   nice_mul(matrix_A, matrix_B, matrix_C);
 
    end_instret    = __get_rv_instret();
    end_cycle      = __get_rv_cycle();
+
+   printf("matrix_C:\n");
+   for (int i = 0; i < 4; i++) {
+       for (int j = 0; j < 3; j++) {
+           printf("%5d ", matrix_C[i][j]);
+       }
+       printf("\n");
+   }
    
    instret_nice = end_instret - begin_instret;
    cycle_nice   = end_cycle - begin_cycle;

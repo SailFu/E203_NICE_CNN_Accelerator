@@ -238,7 +238,7 @@ module tb_systolic_array_4_4;
     array_en_up_0_2   = 0;
     array_en_up_0_3   = 0;
 
-    // important !!!
+    // important ?
     array_data_up_0_0 = 0;
     array_data_up_0_1 = 0;
     array_data_up_0_2 = 0;

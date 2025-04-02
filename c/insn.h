@@ -43,7 +43,6 @@ __STATIC_FORCEINLINE void custom_sbuf(int addr)
      );
 }
 
-
 // custom rowsum 
 __STATIC_FORCEINLINE int custom_rowsum(int addr)
 {
@@ -57,7 +56,7 @@ __STATIC_FORCEINLINE int custom_rowsum(int addr)
     return rowsum; 
 }
 
-
+// custom mul_loada
 __STATIC_FORCEINLINE void custom_mul_loada(uintptr_t addr)
 {
     int zero = 0;
@@ -68,7 +67,7 @@ __STATIC_FORCEINLINE void custom_mul_loada(uintptr_t addr)
     );
 }
 
-
+// custom mul_loadb
 __STATIC_FORCEINLINE void custom_mul_loadb(uintptr_t addr)
 {
     int zero = 0;
@@ -76,6 +75,17 @@ __STATIC_FORCEINLINE void custom_mul_loadb(uintptr_t addr)
         ".insn r 0x7b, 2, 9, x0, %1, x0"
         : "=r"(zero)
         : "r"(addr)
+    );
+}
+
+// custom mul_cals
+__STATIC_FORCEINLINE void custom_mul_cals(uintptr_t st_addr)
+{
+    int zero = 0;
+    asm volatile (
+        ".insn r 0x7b, 2, 10, x0, %1, x0"
+        : "=r"(zero)
+        : "r"(st_addr)
     );
 }
 
@@ -87,7 +97,7 @@ int normal_case(unsigned int array[ROW_LEN][COL_LEN]);
 int nice_case(unsigned int array[ROW_LEN][COL_LEN]);
 
 
-void nice_mul(int matrix_A[4][4], int matrix_B[4][3]);
+void nice_mul(int matrix_A[4][4], int matrix_B[4][3], int matrix_C[4][3]);
 
 
 #endif

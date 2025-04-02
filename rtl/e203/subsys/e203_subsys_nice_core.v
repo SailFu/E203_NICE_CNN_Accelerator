@@ -102,7 +102,7 @@ module e203_subsys_nice_core (
   wire custom3_rowsum     = custom3 && (func3 == 3'b110) && (func7 == 7'b0000110);
   wire custom3_mul_loada  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001000);
   wire custom3_mul_loadb  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001001);
-  wire custom3_mul_cals   = custom3 && (func3 == 3'b110) && (func7 == 7'b0001010);
+  wire custom3_mul_cals   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001010);
 
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
@@ -713,6 +713,17 @@ module e203_subsys_nice_core (
     end
   end
 
+  //////////// 6. custom3_mul_cals
+  // cycle 0-3  : cal
+  // cycle 4    : cal + read to matrix_C_reg
+  // cycle 5-9  : cal + read to matrix_C_reg + write to memory
+  // cycle 10-16: write to memory
+  localparam cals_full_cycles  = 17;
+  
+  localparam matrix_size_C     = 12;
+
+  reg signed [DATA_WIDTH-1:0] mul_cals_reg [0:matrix_size_C-1];
+
   
 
   //////////// rowbuf
@@ -875,8 +886,7 @@ module e203_subsys_nice_core (
          : (state_is_sbuf ? 1'b0 : 1'b1);
 
   // Select the write data when in SBUF state or about to start SBUF from IDLE.
-  assign nice_icb_cmd_wdata = (state_is_idle & custom3_sbuf)
-         ? rowbuf_r[sbuf_idx]
+  assign nice_icb_cmd_wdata = (state_is_idle & custom3_sbuf) ? rowbuf_r[sbuf_idx]
          : (state_is_sbuf ? rowbuf_r[sbuf_idx] : {`E203_XLEN{1'b0}});
 
   // For simplicity, the write mask is not assigned in this design. If needed,
