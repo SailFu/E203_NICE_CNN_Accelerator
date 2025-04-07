@@ -27,7 +27,7 @@ int main(void)
        { -17,  -18,  -19  },
        { -20,  -21,  -22  }};
 
-   int matrix_C[4][3];
+   int matrix_C[4][3] = {0};
 
    printf("matrix_A:\n");
    for (int i = 0; i < 4; i++) {
@@ -40,6 +40,13 @@ int main(void)
    for (int i = 0; i < 4; i++) {
        for (int j = 0; j < 3; j++) {
            printf("%5d ", matrix_B[i][j]);
+       }
+       printf("\n");
+   }
+   printf("\nmatrix_C now:\n");
+   for (int i = 0; i < 4; i++) {
+       for (int j = 0; j < 3; j++) {
+           printf("%5d ", matrix_C[i][j]);
        }
        printf("\n");
    }

@@ -111,7 +111,7 @@ module e203_subsys_nice_core (
                              custom3_mul_loada | custom3_mul_loadb | custom3_mul_cals;
   // need access memory
   wire custom_mem_op       = custom3_lbuf      | custom3_sbuf      | custom3_rowsum   | 
-                             custom3_mul_loada | custom3_mul_loadb | custom3_mul_cals;
+                             custom3_mul_loada | custom3_mul_loadb;
 
   ////////////////////////////////////////////////////////////
   // NICE FSM
@@ -133,8 +133,8 @@ module e203_subsys_nice_core (
   wire state_is_sbuf       = (state == SBUF);
   wire state_is_rowsum     = (state == ROWSUM);
   wire state_is_mul_loada  = (state == MUL_LOADA);
-  wire state_is_mul_store  = (state == MUL_STORE);
   wire state_is_mul_loadb  = (state == MUL_LOADB);
+  wire state_is_mul_store  = (state == MUL_STORE);
   wire state_is_mul_cals   = (state == MUL_CALS);
 
   // handshake success signals
@@ -706,15 +706,11 @@ module e203_subsys_nice_core (
   end
 
   //////////// 6. custom3_mul_cals
-  // cycle 0-3  : cal
-  // cycle 4    : cal + read to matrix_C_reg
-  // cycle 5-9  : cal + read to matrix_C_reg + write to memory
-  // cycle 10-16: write to memory
-  localparam cals_full_cycles = 17;
+  localparam cals_full_cycles = 18;
   
   integer mul_cals_cnt;
   wire mul_cals_cnt_done    = (mul_cals_cnt == cals_full_cycles);
-  wire mul_cals_icb_rsp_hs  = state_is_mul_cals & nice_icb_rsp_hsked;
+  wire mul_cals_icb_rsp_hs  = state_is_mul_cals;
   wire mul_cals_cnt_incr    = mul_cals_icb_rsp_hs & ~mul_cals_cnt_done;
   assign mul_cals_done      = mul_cals_icb_rsp_hs & mul_cals_cnt_done;
 
@@ -733,6 +729,7 @@ module e203_subsys_nice_core (
   reg signed [DATA_WIDTH-1:0] mul_cals_reg [0:matrix_size_C-1];
 
   integer mul_cals_cmd_cnt;
+  wire mul_cals_store        = mul_cals_cnt >= 6;
   wire mul_cals_cmd_cnt_done = (mul_cals_cmd_cnt == matrix_size_C);
   wire mul_cals_cmd_hsked    = state_is_mul_cals & nice_icb_cmd_hsked;
   wire mul_cals_cmd_cnt_incr = mul_cals_cmd_hsked & ~mul_cals_cmd_cnt_done;
@@ -740,7 +737,7 @@ module e203_subsys_nice_core (
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n)
       mul_cals_cmd_cnt <= 0;
-    else if (mul_cals_cnt >= 5) begin 
+    else if (mul_cals_store) begin 
       if (mul_cals_cmd_cnt_done)
         mul_cals_cmd_cnt <= 0;
       else if (mul_cals_cmd_cnt_incr)
@@ -752,7 +749,7 @@ module e203_subsys_nice_core (
 
   // valid signals
   wire nice_rsp_valid_mul_cals     = state_is_mul_cals & mul_cals_cnt_done & nice_icb_rsp_valid;
-  wire nice_icb_cmd_valid_mul_cals = state_is_mul_cals & (mul_cals_cmd_cnt < matrix_size_C);
+  wire nice_icb_cmd_valid_mul_cals = state_is_mul_cals & (mul_cals_cmd_cnt < matrix_size_C) & mul_cals_store;
 
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
@@ -766,38 +763,100 @@ module e203_subsys_nice_core (
       array_data_left_3_0 <= {DATA_WIDTH{1'b0}};
       for (i = 0; i < matrix_size_C; i = i + 1)
         mul_cals_reg[i]   <= {DATA_WIDTH{1'b0}};
-    end else begin
+    end else if (state_is_mul_cals) begin
       case (mul_cals_cnt)
         0: begin
           array_en_left_0_0   <= 1;
           array_en_left_1_0   <= 1;
           array_en_left_2_0   <= 1;
           array_en_left_3_0   <= 1;
+          array_data_left_0_0 <= matrix_B_reg[0];
+          array_data_left_1_0 <= 0;
+          array_data_left_2_0 <= 0;
+          array_data_left_3_0 <= 0;
         end
-
         1: begin
-          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_0);
+          array_data_left_0_0 <= matrix_B_reg[1];
+          array_data_left_1_0 <= matrix_B_reg[3];
+          array_data_left_2_0 <= 0;
+          array_data_left_3_0 <= 0;
         end
-
         2: begin
-          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_1);
+          array_data_left_0_0 <= matrix_B_reg[2];
+          array_data_left_1_0 <= matrix_B_reg[4];
+          array_data_left_2_0 <= matrix_B_reg[6];
+          array_data_left_3_0 <= 0;
         end
-
         3: begin
-          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_2);
+          array_data_left_0_0 <= 0;
+          array_data_left_1_0 <= matrix_B_reg[5];
+          array_data_left_2_0 <= matrix_B_reg[7];
+          array_data_left_3_0 <= matrix_B_reg[9];
         end
-
         4: begin
-          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_3);
+          array_data_left_0_0 <= 0;
+          array_data_left_1_0 <= 0;
+          array_data_left_2_0 <= matrix_B_reg[8];
+          array_data_left_3_0 <= matrix_B_reg[10];
         end
-
+        5: begin
+          array_data_left_0_0 <= 0;
+          array_data_left_1_0 <= 0;
+          array_data_left_2_0 <= 0;
+          array_data_left_3_0 <= matrix_B_reg[11];
+          mul_cals_reg[0]  <= array_data_down_3_0;
+        end
+        6: begin
+          array_en_left_0_0   <= 0;
+          array_en_left_1_0   <= 0;
+          array_en_left_2_0   <= 0;
+          array_en_left_3_0   <= 0;
+          array_data_left_0_0 <= 0;
+          array_data_left_1_0 <= 0;
+          array_data_left_2_0 <= 0;
+          array_data_left_3_0 <= 0;
+          mul_cals_reg[1]  <= array_data_down_3_0;
+          mul_cals_reg[3]  <= array_data_down_3_1;
+        end
+        7: begin
+          mul_cals_reg[2]  <= array_data_down_3_0;
+          mul_cals_reg[4]  <= array_data_down_3_1;
+          mul_cals_reg[6]  <= array_data_down_3_2;
+        end
+        8: begin
+          mul_cals_reg[5]  <= array_data_down_3_1;
+          mul_cals_reg[7]  <= array_data_down_3_2;
+          mul_cals_reg[9]  <= array_data_down_3_3;
+        end
+        9: begin
+          mul_cals_reg[8]  <= array_data_down_3_2;
+          mul_cals_reg[10] <= array_data_down_3_3;
+        end
+        10: begin
+          mul_cals_reg[11] <= array_data_down_3_3;
+        end
         default: begin
-          mul_cals_reg[mul_cals_cmd_cnt] <= {DATA_WIDTH{1'b0}};
+          array_en_left_0_0   <= 1'b0; 
+          array_en_left_1_0   <= 1'b0; 
+          array_en_left_2_0   <= 1'b0; 
+          array_en_left_3_0   <= 1'b0; 
+          array_data_left_0_0 <= {DATA_WIDTH{1'b0}};
+          array_data_left_1_0 <= {DATA_WIDTH{1'b0}};
+          array_data_left_2_0 <= {DATA_WIDTH{1'b0}};
+          array_data_left_3_0 <= {DATA_WIDTH{1'b0}};
         end
       endcase
     end
   end
 
+  reg [`E203_XLEN-1:0] mul_cals_rs1_reg;
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      mul_cals_rs1_reg <= 0;
+    else if (state_is_idle & custom3_mul_cals)
+      mul_cals_rs1_reg <= nice_req_rs1;
+  end
   
 
   //////////// rowbuf
@@ -855,15 +914,15 @@ module e203_subsys_nice_core (
   wire rowsum_maddr_ena     = (state_is_idle & custom3_rowsum     & nice_icb_cmd_hsked) | (state_is_rowsum     & nice_icb_cmd_hsked);
   wire mul_loada_maddr_ena  = (state_is_idle & custom3_mul_loada  & nice_icb_cmd_hsked) | (state_is_mul_loada  & nice_icb_cmd_hsked);
   wire mul_loadb_maddr_ena  = (state_is_idle & custom3_mul_loadb  & nice_icb_cmd_hsked) | (state_is_mul_loadb  & nice_icb_cmd_hsked);
-  wire mul_cals_maddr_ena   = (state_is_idle & custom3_mul_cals   & nice_icb_cmd_hsked) | (state_is_mul_cals   & nice_icb_cmd_hsked);
+  wire mul_cals_maddr_ena   = (state_is_mul_cals & mul_cals_store);
 
   // Combine the enable signals for the memory address update
-  wire maddr_ena = lbuf_maddr_ena      | sbuf_maddr_ena      | rowsum_maddr_ena    |
+  wire maddr_ena = lbuf_maddr_ena      | sbuf_maddr_ena      | rowsum_maddr_ena   |
                    mul_loada_maddr_ena | mul_loadb_maddr_ena | mul_cals_maddr_ena;
 
   // When in IDLE state, use the base address from nice_req_rs1; otherwise, use the current accumulator value.
-  wire maddr_ena_idle = maddr_ena & state_is_idle;
-  wire [`E203_XLEN-1:0] maddr_acc_op1 = maddr_ena_idle ? nice_req_rs1 : maddr_acc_r;
+  wire maddr_ena_idle = (maddr_ena & state_is_idle) | (mul_cals_cnt == 6);
+  wire [`E203_XLEN-1:0] maddr_acc_op1 = maddr_ena_idle ? ((mul_cals_cnt == 6) ? mul_cals_rs1_reg : nice_req_rs1) : maddr_acc_r;
 
   // The increment value is fixed (4 bytes)
   wire [`E203_XLEN-1:0] maddr_acc_op2 = `E203_XLEN'h4;
@@ -913,7 +972,7 @@ module e203_subsys_nice_core (
   // The NICE core provides a valid response if any of the three operations (rowsum, sbuf, lbuf)
   // signals a valid result.
   assign nice_rsp_valid = nice_rsp_valid_rowsum    | nice_rsp_valid_sbuf      | nice_rsp_valid_lbuf     | 
-                          nice_rsp_valid_mul_loada | nice_rsp_valid_mul_loadb;
+                          nice_rsp_valid_mul_loada | nice_rsp_valid_mul_loadb | nice_rsp_valid_mul_cals;
 
   // When in the ROWSUM state, the response data is the accumulated row sum;
   // in other states, it is typically zero or unused here.
@@ -933,6 +992,7 @@ module e203_subsys_nice_core (
 
   // SBUF uses sbuf_cmd_cnt to index into rowbuf when writing to memory
   wire [ROWBUF_IDX_W-1:0] sbuf_idx = sbuf_cmd_cnt;
+  wire [5:0] cals_idx = mul_cals_cmd_cnt;
 
   // Generate the memory command valid signal. It is asserted if:
   // 1. In IDLE with a valid request that needs memory (custom_mem_op),
@@ -945,23 +1005,27 @@ module e203_subsys_nice_core (
          | nice_icb_cmd_valid_sbuf
          | nice_icb_cmd_valid_rowsum
          | nice_icb_cmd_valid_mul_loada
-         | nice_icb_cmd_valid_mul_loadb;
+         | nice_icb_cmd_valid_mul_loadb
+         | nice_icb_cmd_valid_mul_cals;
 
   // Select the memory address. If in IDLE and about to start a memory operation,
   // use the base address from nice_req_rs1; otherwise, use the accumulated address.
-  assign nice_icb_cmd_addr = (state_is_idle & custom_mem_op) ? nice_req_rs1 : maddr_acc_r;
+  assign nice_icb_cmd_addr = (state_is_idle & custom_mem_op) ? nice_req_rs1 : 
+                             (mul_cals_cnt == 6) ? mul_cals_rs1_reg :
+                             maddr_acc_r;
 
   // Determine whether the operation is a read or write:
   // - In IDLE, if the next operation is either LBUF or ROWSUM, use read.
   // - In SBUF state, use write.
   // - Otherwise, default to read.
   assign nice_icb_cmd_read = (state_is_idle & custom_mem_op)
-         ? (custom3_lbuf | custom3_rowsum | custom3_mul_loada | custom3_mul_loadb | custom3_mul_cals)
-         : (state_is_sbuf ? 1'b0 : 1'b1);
+         ? (custom3_lbuf | custom3_rowsum | custom3_mul_loada | custom3_mul_loadb)
+         : ((state_is_sbuf | mul_cals_maddr_ena) ? 1'b0 : 1'b1);
 
   // Select the write data when in SBUF state or about to start SBUF from IDLE.
-  assign nice_icb_cmd_wdata = (state_is_idle & custom3_sbuf) ? rowbuf_r[sbuf_idx]
-         : (state_is_sbuf ? rowbuf_r[sbuf_idx] : {`E203_XLEN{1'b0}});
+  assign nice_icb_cmd_wdata = ((state_is_idle & custom3_sbuf) | state_is_sbuf) ? rowbuf_r[sbuf_idx] : 
+                              mul_cals_maddr_ena ? mul_cals_reg[cals_idx] :
+                              {`E203_XLEN{1'b0}};
 
   // For simplicity, the write mask is not assigned in this design. If needed,
   // it can be set to select specific byte lanes (e.g., 4'b1111 for a full word).
