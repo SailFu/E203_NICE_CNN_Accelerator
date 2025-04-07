@@ -639,14 +639,6 @@ module e203_subsys_nice_core (
 
   always @(posedge nice_clk or negedge nice_rst_n) begin                                        
     if(!nice_rst_n) begin
-      array_en_left_0_0   <= 1'b0; 
-      array_en_left_1_0   <= 1'b0; 
-      array_en_left_2_0   <= 1'b0; 
-      array_en_left_3_0   <= 1'b0; 
-      array_data_left_0_0 <= {DATA_WIDTH{1'b0}};
-      array_data_left_1_0 <= {DATA_WIDTH{1'b0}};
-      array_data_left_2_0 <= {DATA_WIDTH{1'b0}};
-      array_data_left_3_0 <= {DATA_WIDTH{1'b0}};
       array_en_up_0_0     <= 1'b0;
       array_en_up_0_1     <= 1'b0;
       array_en_up_0_2     <= 1'b0;
@@ -718,11 +710,93 @@ module e203_subsys_nice_core (
   // cycle 4    : cal + read to matrix_C_reg
   // cycle 5-9  : cal + read to matrix_C_reg + write to memory
   // cycle 10-16: write to memory
-  localparam cals_full_cycles  = 17;
+  localparam cals_full_cycles = 17;
   
-  localparam matrix_size_C     = 12;
+  integer mul_cals_cnt;
+  wire mul_cals_cnt_done    = (mul_cals_cnt == cals_full_cycles);
+  wire mul_cals_icb_rsp_hs  = state_is_mul_cals & nice_icb_rsp_hsked;
+  wire mul_cals_cnt_incr    = mul_cals_icb_rsp_hs & ~mul_cals_cnt_done;
+  assign mul_cals_done      = mul_cals_icb_rsp_hs & mul_cals_cnt_done;
 
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      mul_cals_cnt <= 0;
+    else if (mul_cals_done)
+      mul_cals_cnt <= 0;
+    else if (mul_cals_cnt_incr)
+      mul_cals_cnt <= mul_cals_cnt + 1;
+    else
+      mul_cals_cnt <= mul_cals_cnt;
+  end
+
+  localparam matrix_size_C = 12;
   reg signed [DATA_WIDTH-1:0] mul_cals_reg [0:matrix_size_C-1];
+
+  integer mul_cals_cmd_cnt;
+  wire mul_cals_cmd_cnt_done = (mul_cals_cmd_cnt == matrix_size_C);
+  wire mul_cals_cmd_hsked    = state_is_mul_cals & nice_icb_cmd_hsked;
+  wire mul_cals_cmd_cnt_incr = mul_cals_cmd_hsked & ~mul_cals_cmd_cnt_done;
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      mul_cals_cmd_cnt <= 0;
+    else if (mul_cals_cnt >= 5) begin 
+      if (mul_cals_cmd_cnt_done)
+        mul_cals_cmd_cnt <= 0;
+      else if (mul_cals_cmd_cnt_incr)
+        mul_cals_cmd_cnt <= mul_cals_cmd_cnt + 1;
+      else
+        mul_cals_cmd_cnt <= mul_cals_cmd_cnt;
+    end
+  end
+
+  // valid signals
+  wire nice_rsp_valid_mul_cals     = state_is_mul_cals & mul_cals_cnt_done & nice_icb_rsp_valid;
+  wire nice_icb_cmd_valid_mul_cals = state_is_mul_cals & (mul_cals_cmd_cnt < matrix_size_C);
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      array_en_left_0_0   <= 1'b0; 
+      array_en_left_1_0   <= 1'b0; 
+      array_en_left_2_0   <= 1'b0; 
+      array_en_left_3_0   <= 1'b0; 
+      array_data_left_0_0 <= {DATA_WIDTH{1'b0}};
+      array_data_left_1_0 <= {DATA_WIDTH{1'b0}};
+      array_data_left_2_0 <= {DATA_WIDTH{1'b0}};
+      array_data_left_3_0 <= {DATA_WIDTH{1'b0}};
+      for (i = 0; i < matrix_size_C; i = i + 1)
+        mul_cals_reg[i]   <= {DATA_WIDTH{1'b0}};
+    end else begin
+      case (mul_cals_cnt)
+        0: begin
+          array_en_left_0_0   <= 1;
+          array_en_left_1_0   <= 1;
+          array_en_left_2_0   <= 1;
+          array_en_left_3_0   <= 1;
+        end
+
+        1: begin
+          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_0);
+        end
+
+        2: begin
+          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_1);
+        end
+
+        3: begin
+          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_2);
+        end
+
+        4: begin
+          mul_cals_reg[mul_cals_cmd_cnt] <= $signed(array_data_down_3_3);
+        end
+
+        default: begin
+          mul_cals_reg[mul_cals_cmd_cnt] <= {DATA_WIDTH{1'b0}};
+        end
+      endcase
+    end
+  end
 
   
 
