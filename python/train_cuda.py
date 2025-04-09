@@ -24,8 +24,8 @@ class SimpleCNN(nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
         self.conv1 = nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=0)
-        self.conv2 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=0)
-        self.fc1 = nn.Linear(4 * 5 * 5, 10)
+        self.conv2 = nn.Conv2d(4, 2, kernel_size=3, stride=1, padding=0)
+        self.fc1 = nn.Linear(2 * 5 * 5, 10)
         self.fc2 = nn.Linear(10, 10)
 
     def forward(self, x):
@@ -34,7 +34,7 @@ class SimpleCNN(nn.Module):
         x = F.max_pool2d(x, 2)
         x = F.relu(self.conv2(x))
         x = F.max_pool2d(x, 2)
-        x = x.view(-1, 4 * 5 * 5)
+        x = x.view(-1, 2 * 5 * 5)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
@@ -104,8 +104,8 @@ class QuantizableSimpleCNN(nn.Module):
         super(QuantizableSimpleCNN, self).__init__()
         self.quant = QuantStub()
         self.conv1 = nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=0)
-        self.conv2 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=0)
-        self.fc1 = nn.Linear(4 * 5 * 5, 10)
+        self.conv2 = nn.Conv2d(4, 2, kernel_size=3, stride=1, padding=0)
+        self.fc1 = nn.Linear(2 * 5 * 5, 10)
         self.fc2 = nn.Linear(10, 10)
         self.dequant = DeQuantStub()
 
@@ -117,7 +117,7 @@ class QuantizableSimpleCNN(nn.Module):
         x = F.max_pool2d(x, 2)
 
         # 将 x.view(...) 替换为 x.reshape(...)
-        x = x.reshape(-1, 4 * 5 * 5)
+        x = x.reshape(-1, 2 * 5 * 5)
 
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
