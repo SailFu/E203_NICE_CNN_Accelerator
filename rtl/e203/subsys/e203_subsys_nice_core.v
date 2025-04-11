@@ -98,13 +98,18 @@ module e203_subsys_nice_core (
   wire custom3_mul_loada  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001000);
   wire custom3_mul_loadb  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001001);
   wire custom3_mul_cals   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001010);
+  wire custom3_load_conv1 = custom3 && (func3 == 3'b010) && (func7 == 7'b0001011);
+  wire custom3_load_input = custom3 && (func3 == 3'b010) && (func7 == 7'b0001100);
+  wire custom3_start      = custom3 && (func3 == 3'b010) && (func7 == 7'b0001101);
 
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
   ////////////////////////////////////////////////////////////
-  wire custom_multi_cyc_op = custom3_mul_loada | custom3_mul_loadb | custom3_mul_cals;
+  wire custom_multi_cyc_op = custom3_mul_loada  | custom3_mul_loadb  | custom3_mul_cals | 
+                             custom3_load_conv1 | custom3_load_input | custom3_start;
   // need access memory
-  wire custom_mem_op       = custom3_mul_loada | custom3_mul_loadb;
+  wire custom_mem_op       = custom3_mul_loada  | custom3_mul_loadb  | 
+                             custom3_load_conv1 | custom3_load_input;
 
   ////////////////////////////////////////////////////////////
   // NICE FSM
@@ -114,6 +119,9 @@ module e203_subsys_nice_core (
   localparam MUL_LOADB  = 4'd2;
   localparam MUL_STORE  = 4'd3;
   localparam MUL_CALS   = 4'd4;
+  localparam LOAD_CONV1 = 4'd5;
+  localparam LOAD_INPUT = 4'd6;
+  localparam START      = 4'd7;
 
   // FSM state register
   integer state;
@@ -123,6 +131,9 @@ module e203_subsys_nice_core (
   wire state_is_mul_loadb  = (state == MUL_LOADB);
   wire state_is_mul_store  = (state == MUL_STORE);
   wire state_is_mul_cals   = (state == MUL_CALS);
+  wire state_is_load_conv1 = (state == LOAD_CONV1);
+  wire state_is_load_input = (state == LOAD_INPUT);
+  wire state_is_start      = (state == START);
 
   // handshake success signals
   wire nice_req_hsked;
@@ -134,6 +145,9 @@ module e203_subsys_nice_core (
   wire mul_loadb_done;
   wire mul_store_done;
   wire mul_cals_done;
+  wire load_conv1_done;
+  wire load_input_done;
+  wire start_done;
 
   // FSM state update using behavioral description
   always @(posedge nice_clk or negedge nice_rst_n)
@@ -155,6 +169,12 @@ module e203_subsys_nice_core (
               state <= MUL_LOADB;
             else if (custom3_mul_cals)
               state <= MUL_CALS;
+            else if (custom3_load_conv1)
+              state <= LOAD_CONV1;
+            else if (custom3_load_input)
+              state <= LOAD_INPUT;
+            else if (custom3_start)
+              state <= START;
             else
               state <= IDLE;
           end
@@ -194,6 +214,30 @@ module e203_subsys_nice_core (
             state <= IDLE;
           else
             state <= MUL_CALS;
+        end
+
+        LOAD_CONV1:
+        begin
+          if (load_conv1_done)
+            state <= IDLE;
+          else
+            state <= LOAD_CONV1;
+        end
+
+        LOAD_INPUT:
+        begin
+          if (load_input_done)
+            state <= IDLE;
+          else
+            state <= LOAD_INPUT;
+        end
+
+        START:
+        begin
+          if (start_done)
+            state <= IDLE;
+          else
+            state <= START;
         end
 
         default:
@@ -283,6 +327,83 @@ module e203_subsys_nice_core (
         matrix_B_reg[i] <= {`E203_XLEN{1'b0}};
       end else if (mul_loadb_icb_rsp_hs) begin
         matrix_B_reg[mul_loadb_cnt] <= $signed(nice_icb_rsp_rdata);
+      end 
+  end
+
+
+  //////////// 1. custom3_load_conv1
+  localparam conv1_size = 3 * 3 * 5;
+
+  integer load_conv1_cnt;
+
+  wire load_conv1_cnt_done    = (load_conv1_cnt == conv1_size);
+  wire load_conv1_icb_rsp_hs  = state_is_load_conv1 & nice_icb_rsp_hsked;
+  wire load_conv1_cnt_incr    = load_conv1_icb_rsp_hs & ~load_conv1_cnt_done;
+  assign load_conv1_done      = load_conv1_icb_rsp_hs & load_conv1_cnt_done;
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      load_conv1_cnt <= 0;
+    else if (load_conv1_done)
+      load_conv1_cnt <= 0;
+    else if (load_conv1_cnt_incr)
+      load_conv1_cnt <= load_conv1_cnt + 1;
+    else
+      load_conv1_cnt <= load_conv1_cnt;
+  end
+
+  // valid signals
+  wire nice_rsp_valid_load_conv1     = state_is_load_conv1 & load_conv1_cnt_done & nice_icb_rsp_valid;
+  wire nice_icb_cmd_valid_load_conv1 = state_is_load_conv1 & (load_conv1_cnt < conv1_size);
+
+
+  //////////// 1. custom3_load_conv1
+  localparam input_size = 14 * 14;
+
+  integer load_input_cnt;
+
+  wire load_input_cnt_done    = (load_input_cnt == input_size);
+  wire load_input_icb_rsp_hs  = state_is_load_input & nice_icb_rsp_hsked;
+  wire load_input_cnt_incr    = load_input_icb_rsp_hs & ~load_input_cnt_done;
+  assign load_input_done      = load_input_icb_rsp_hs & load_input_cnt_done;
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      load_input_cnt <= 0;
+    else if (load_conv1_done)
+      load_input_cnt <= 0;
+    else if (load_input_cnt_incr)
+      load_input_cnt <= load_input_cnt + 1;
+    else
+      load_input_cnt <= load_input_cnt;
+  end
+
+  // valid signals
+  wire nice_rsp_valid_load_input     = state_is_load_input & load_input_cnt_done & nice_icb_rsp_valid;
+  wire nice_icb_cmd_valid_load_input = state_is_load_input & (load_input_cnt < input_size);
+
+
+  //////////// conv1 buffer
+  reg signed [`E203_XLEN-1:0] conv1_reg [0:conv1_size-1];
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      for (i = 0; i < conv1_size; i = i + 1)
+      conv1_reg[i] <= {`E203_XLEN{1'b0}};
+      end else if (load_conv1_icb_rsp_hs) begin
+        conv1_reg[load_conv1_cnt] <= $signed(nice_icb_rsp_rdata);
+      end 
+  end
+
+  // input buffer
+  reg signed [`E203_XLEN-1:0] input_reg [0:input_size-1];
+
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      for (i = 0; i < input_size; i = i + 1)
+      input_reg[i] <= {`E203_XLEN{1'b0}};
+      end else if (load_input_icb_rsp_hs) begin
+        input_reg[load_input_cnt] <= $signed(nice_icb_rsp_rdata);
       end 
   end
 

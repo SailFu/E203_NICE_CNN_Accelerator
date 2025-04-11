@@ -1,6 +1,5 @@
 #include "insn.h"
 #include <stdio.h>
-
  
 // normal test case without NICE accelerator.
 int normal_case(unsigned int array[ROW_LEN][COL_LEN])
@@ -19,19 +18,8 @@ int normal_case(unsigned int array[ROW_LEN][COL_LEN])
     }
     row_sum[i] = tmp;
   }
-/*#ifdef _DEBUG_INFO_
-  printf ("the element of array is :\n\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", array[0][i]); printf("\n\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", array[1][i]); printf("\n\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", array[2][i]); printf("\n\n");
-  printf ("the sum of each row is :\n\t\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", row_sum[i]); printf("\n");
-  printf ("the sum of each col is :\n\t\t");
-  for (j = 0; j < COL_LEN; j++) printf("%d\t", col_sum[j]); printf("\n");
-#endif*/
   return 0;
 }
-
 
 // test case using NICE accelerator.
 int nice_case(unsigned int array[ROW_LEN][COL_LEN])
@@ -47,29 +35,69 @@ int nice_case(unsigned int array[ROW_LEN][COL_LEN])
     row_sum[i] = custom_rowsum((int)array[i]);
   }
   custom_sbuf((int)col_sum);
-/*#ifdef _DEBUG_INFO_
-  printf ("the element of array is :\n\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", array[0][i]); printf("\n\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", array[1][i]); printf("\n\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", array[2][i]); printf("\n\n");
-  printf ("the sum of each row is :\n\t\t");
-  for (i = 0; i < ROW_LEN; i++) printf("%d\t", row_sum[i]); printf("\n");
-  printf ("the sum of each col is :\n\t\t");
-  for (j = 0; j < COL_LEN; j++) printf("%d\t", col_sum[j]); printf("\n");
-#endif*/
   return 0;
 }
 
 
+void conv2d(int input[ROWS][COLS], int kernel[KERNEL_SIZE][KERNEL_SIZE], int output[OUT_ROWS][OUT_COLS]) 
+{
+    for (int i = 0; i < OUT_ROWS; i++) 
+    {
+        for (int j = 0; j < OUT_COLS; j++) 
+        {
+            int sum = 0;
+            for (int k = 0; k < KERNEL_SIZE; k++) 
+                for (int l = 0; l < KERNEL_SIZE; l++) 
+                    sum += input[i + k][j + l] * kernel[k][l];
+            output[i][j] = sum;
+        }
+    }
+}
+
+void normal_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE], int output[NUM_KERNELS][OUT_ROWS][OUT_COLS]) 
+{
+    for (int n = 0; n < NUM_KERNELS; n++)
+        conv2d(input, kernels[n], output[n]);
+
+    #ifdef DEBUG_INFO
+    printf("Input Matrix (14*14):\n");
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLS; j++) {
+            printf("%4d ", input[i][j]);
+        }
+        printf("\n");
+    }
+
+    for (int n = 0; n < NUM_KERNELS; n++) {
+        printf("\nConvolution Kernel %d (3*3):\n", n);
+        for (int i = 0; i < KERNEL_SIZE; i++) {
+            for (int j = 0; j < KERNEL_SIZE; j++) {
+                printf("%4d ", kernels[n][i][j]);
+            }
+            printf("\n");
+        }
+        printf("\nConvlolution Output %d (12*12):\n", n);
+        for (int i = 0; i < OUT_ROWS; i++) {
+            for (int j = 0; j < OUT_COLS; j++) {
+                printf("%6d ", output[n][i][j]);
+            }
+            printf("\n");
+        }
+    }
+    #endif
+}
+
+
+
 void nice_mul(int matrix_A[4][4], int matrix_B[4][3], int matrix_C[4][3])
 {
-  custom_mul_loada((uintptr_t)matrix_A[0]);
-  custom_mul_loadb((uintptr_t)matrix_B[0]);
+    custom_mul_loada((uintptr_t)matrix_A[0]);
+    custom_mul_loadb((uintptr_t)matrix_B[0]);
 
-  // printf("matrix_A address: %p\n", (void*)matrix_A[0]);
-  // printf("matrix_B address: %p\n", (void*)matrix_B[0]);
+    // printf("matrix_A address: %p\n", (void*)matrix_A[0]);
+    // printf("matrix_B address: %p\n", (void*)matrix_B[0]);
 
-  custom_mul_cals((uintptr_t)matrix_C[0]);
+    custom_mul_cals((uintptr_t)matrix_C[0]);
 
 }
 
