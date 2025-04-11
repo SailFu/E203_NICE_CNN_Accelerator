@@ -15,7 +15,6 @@ module e203_subsys_nice_core (
     input                         nice_rst_n	         ,
     output                        nice_active	         ,
     output                        nice_mem_holdup	     ,
-    //    output                        nice_rsp_err_irq	  ,
 
     // Control cmd_req
     input                         nice_req_valid       ,
@@ -36,7 +35,6 @@ module e203_subsys_nice_core (
     output [`E203_ADDR_SIZE-1:0]  nice_icb_cmd_addr    ,
     output                        nice_icb_cmd_read    ,
     output [`E203_XLEN-1:0]       nice_icb_cmd_wdata   ,
-    //    output [`E203_XLEN_MW-1:0]     nice_icb_cmd_wmask   ,  //
     output [1:0]                  nice_icb_cmd_size    ,
 
     // Memory lsu_rsp
@@ -97,9 +95,6 @@ module e203_subsys_nice_core (
   //     .insn r opcode, func3, func7, rd, rs1, rs2
   ////////////////////////////////////////////////////////////
   wire custom3            = (opcode == 7'b1111011);
-  wire custom3_lbuf       = custom3 && (func3 == 3'b010) && (func7 == 7'b0000001);
-  wire custom3_sbuf       = custom3 && (func3 == 3'b010) && (func7 == 7'b0000010);
-  wire custom3_rowsum     = custom3 && (func3 == 3'b110) && (func7 == 7'b0000110);
   wire custom3_mul_loada  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001000);
   wire custom3_mul_loadb  = custom3 && (func3 == 3'b010) && (func7 == 7'b0001001);
   wire custom3_mul_cals   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001010);
@@ -107,31 +102,23 @@ module e203_subsys_nice_core (
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
   ////////////////////////////////////////////////////////////
-  wire custom_multi_cyc_op = custom3_lbuf      | custom3_sbuf      | custom3_rowsum   | 
-                             custom3_mul_loada | custom3_mul_loadb | custom3_mul_cals;
+  wire custom_multi_cyc_op = custom3_mul_loada | custom3_mul_loadb | custom3_mul_cals;
   // need access memory
-  wire custom_mem_op       = custom3_lbuf      | custom3_sbuf      | custom3_rowsum   | 
-                             custom3_mul_loada | custom3_mul_loadb;
+  wire custom_mem_op       = custom3_mul_loada | custom3_mul_loadb;
 
   ////////////////////////////////////////////////////////////
   // NICE FSM
   ////////////////////////////////////////////////////////////
   localparam IDLE       = 4'd0;
-  localparam LBUF       = 4'd1;
-  localparam SBUF       = 4'd2;
-  localparam ROWSUM     = 4'd3;
-  localparam MUL_LOADA  = 4'd4;
-  localparam MUL_LOADB  = 4'd5;
-  localparam MUL_STORE  = 4'd6;
-  localparam MUL_CALS   = 4'd7;
+  localparam MUL_LOADA  = 4'd1;
+  localparam MUL_LOADB  = 4'd2;
+  localparam MUL_STORE  = 4'd3;
+  localparam MUL_CALS   = 4'd4;
 
   // FSM state register
   integer state;
 
   wire state_is_idle       = (state == IDLE);
-  wire state_is_lbuf       = (state == LBUF);
-  wire state_is_sbuf       = (state == SBUF);
-  wire state_is_rowsum     = (state == ROWSUM);
   wire state_is_mul_loada  = (state == MUL_LOADA);
   wire state_is_mul_loadb  = (state == MUL_LOADB);
   wire state_is_mul_store  = (state == MUL_STORE);
@@ -143,9 +130,6 @@ module e203_subsys_nice_core (
   wire nice_rsp_hsked;
 
   // finish signals
-  wire lbuf_icb_rsp_hsked_last;
-  wire sbuf_icb_rsp_hsked_last;
-  wire rowsum_done;
   wire mul_loada_done;
   wire mul_loadb_done;
   wire mul_store_done;
@@ -165,13 +149,7 @@ module e203_subsys_nice_core (
         begin
           if (nice_req_hsked && custom_multi_cyc_op)
           begin
-            if (custom3_lbuf)
-              state <= LBUF;
-            else if (custom3_sbuf)
-              state <= SBUF;
-            else if (custom3_rowsum)
-              state <= ROWSUM;
-            else if (custom3_mul_loada)
+            if (custom3_mul_loada)
               state <= MUL_LOADA;
             else if (custom3_mul_loadb)
               state <= MUL_LOADB;
@@ -184,33 +162,6 @@ module e203_subsys_nice_core (
           begin
             state <= IDLE;
           end
-        end
-
-        // In LBUF, remain until the last ICB response handshake occurs.
-        LBUF:
-        begin
-          if (lbuf_icb_rsp_hsked_last)
-            state <= IDLE;
-          else
-            state <= LBUF;
-        end
-
-        // In SBUF, remain until the last ICB response handshake occurs.
-        SBUF:
-        begin
-          if (sbuf_icb_rsp_hsked_last)
-            state <= IDLE;
-          else
-            state <= SBUF;
-        end
-
-        // In ROWSUM, remain until the row sum operation is completed.
-        ROWSUM:
-        begin
-          if (rowsum_done)
-            state <= IDLE;
-          else
-            state <= ROWSUM;
         end
         
         MUL_LOADA:
@@ -256,222 +207,7 @@ module e203_subsys_nice_core (
   ////////////////////////////////////////////////////////////
   // instr EXU
   ////////////////////////////////////////////////////////////
-  wire [ROW_IDX_W-1:0]  clonum = 2'b10;  // fixed clonum
-  //wire [COL_IDX_W-1:0]  rownum;
-
-  //////////// 1. custom3_lbuf
-  // lbuf counter register
-  reg [ROWBUF_IDX_W-1:0] lbuf_cnt;
-
-  // Combinational signals for counter update
-  wire lbuf_cnt_last   = (lbuf_cnt == clonum);
-  //wire lbuf_cnt_clr    = custom3_lbuf & nice_req_hsked;  // Clear counter when a new lbuf op is accepted
-  wire lbuf_icb_rsp_hs = state_is_lbuf & nice_icb_rsp_hsked; // Memory response handshake in LBUF state
-  wire lbuf_cnt_incr   = lbuf_icb_rsp_hs & ~lbuf_cnt_last;   // Increment counter if handshake occurs and counter is not full
-  // Generate a signal indicating the last memory response handshake in LBUF state
-  assign lbuf_icb_rsp_hsked_last = lbuf_icb_rsp_hs & lbuf_cnt_last; // and use in FSM
-
-  // Sequential block updating the counter
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      lbuf_cnt <= 0;
-    else if (lbuf_icb_rsp_hsked_last)
-      lbuf_cnt <= 0;
-    else if (lbuf_cnt_incr)
-      lbuf_cnt <= lbuf_cnt + 1;
-    else
-      lbuf_cnt <= lbuf_cnt;
-  end
-
-  // Valid signals
-  // Generate response valid: asserted when in LBUF state, counter is full, and the memory response is valid
-  wire nice_rsp_valid_lbuf = state_is_lbuf & lbuf_cnt_last & nice_icb_rsp_valid;
-  // Generate memory command valid: asserted in LBUF state when counter is not yet full
-  wire nice_icb_cmd_valid_lbuf = state_is_lbuf & (lbuf_cnt < clonum);
-
-
-  //////////// 2. custom3_sbuf
-  reg [ROWBUF_IDX_W-1:0] sbuf_cnt;
-
-  // Generate handshake signals for SBUF
-  // The memory response handshake is valid only in SBUF state.
-  wire sbuf_icb_rsp_hsked = state_is_sbuf & nice_icb_rsp_hsked;
-  // Determine if the SBUF counter has reached the fixed clonum
-  wire sbuf_cnt_last = (sbuf_cnt == clonum);
-  // Increment counter when a memory response handshake occurs
-  wire sbuf_cnt_incr = sbuf_icb_rsp_hsked & ~sbuf_cnt_last;
-  // Signal asserted when the last memory response handshake is received
-  assign sbuf_icb_rsp_hsked_last = sbuf_icb_rsp_hsked & sbuf_cnt_last; // and use in FSM
-
-  // SBUF counter update: clear when last response handshake is received,
-  // increment when a response handshake occurs and the counter is not full.
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      sbuf_cnt <= 0;
-    else if (sbuf_icb_rsp_hsked_last)
-      sbuf_cnt <= 0;
-    else if (sbuf_cnt_incr)
-      sbuf_cnt <= sbuf_cnt + 1;
-    else
-      sbuf_cnt <= sbuf_cnt;
-  end
-
-  // Valid signals
-  // Generate SBUF response valid signal: asserted when in SBUF state, the counter is full, and the memory response is valid.
-  wire nice_rsp_valid_sbuf = state_is_sbuf & sbuf_cnt_last & nice_icb_rsp_valid;
-
-  wire nice_icb_cmd_hsked;
-
-  // SBUF command counter: tracks the number of memory commands issued in SBUF state.
-  reg [ROWBUF_IDX_W-1:0] sbuf_cmd_cnt;
-  wire sbuf_cmd_cnt_last = (sbuf_cmd_cnt == clonum);
-
-  // SBUF command handshake: same as above from the memory command side.
-  wire sbuf_icb_cmd_hsked = ((state_is_sbuf) | (state_is_idle & custom3_sbuf)) & nice_icb_cmd_hsked;
-
-  // SBUF command counter update: clear when the last memory response handshake occurs,
-  // increment when a memory command handshake occurs and the command counter is not full.
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      sbuf_cmd_cnt <= 0;
-    else if (sbuf_icb_rsp_hsked_last)
-      sbuf_cmd_cnt <= 0;
-    else if (sbuf_icb_cmd_hsked && !sbuf_cmd_cnt_last)
-      sbuf_cmd_cnt <= sbuf_cmd_cnt + 1;
-    else
-      sbuf_cmd_cnt <= sbuf_cmd_cnt;
-  end
-
-  // Generate memory command valid signal for SBUF: asserted in SBUF state when the command counter
-  // is not full and the response counter has not yet reached clonum.
-  wire nice_icb_cmd_valid_sbuf = state_is_sbuf & (sbuf_cmd_cnt <= clonum) & (sbuf_cnt != clonum);
-
-
-  //////////// 3. custom3_rowsum
-  // rowbuf counter
-  reg [ROWBUF_IDX_W-1:0] rowbuf_cnt;
-
-  // When in ROWSUM state, a memory response handshake occurs.
-  wire rowbuf_icb_rsp_hsked = state_is_rowsum & nice_icb_rsp_hsked;
-
-  // Check if the counter has reached the fixed 'clonum'
-  wire rowbuf_cnt_last = (rowbuf_cnt == clonum);
-
-  // Clear the counter when the last handshake is received
-  wire rowbuf_cnt_clr = rowbuf_icb_rsp_hsked & rowbuf_cnt_last;
-
-  // Increment the counter when a handshake occurs and the counter is not full
-  wire rowbuf_cnt_incr = rowbuf_icb_rsp_hsked & ~rowbuf_cnt_last;
-
-  wire nice_rsp_valid_rowsum;
-  // Optionally, generate a handshake signal for the response (used elsewhere)
-  wire rowbuf_rsp_hsked = nice_rsp_valid_rowsum & nice_rsp_ready;
-
-  // Sequential block to update the row buffer counter
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      rowbuf_cnt <= 0;                      // Reset counter to 0 on reset
-    else if (rowbuf_cnt_clr)
-      rowbuf_cnt <= 0;                      // Clear counter when last handshake occurs
-    else if (rowbuf_cnt_incr)
-      rowbuf_cnt <= rowbuf_cnt + 1;         // Increment counter if handshake occurs and not full
-    else
-      rowbuf_cnt <= rowbuf_cnt;             // Otherwise, keep the counter value
-  end
-
-
-  // recieve data buffer, to make sure rowsum ops come from registers
-  // Control signal generation:
-  // - rcv_data_buf_set: Triggered when a row-buffer memory response handshake occurs.
-  // - rcv_data_buf_clr: Triggered when the row-buffer response handshake occurs.
-  // - rcv_data_buf_ena: Enable signal for updating the data buffer and index.
-  wire rcv_data_buf_set = rowbuf_icb_rsp_hsked;  // Set signal: triggered by memory response handshake in row-buffer
-  wire rcv_data_buf_clr = rowbuf_rsp_hsked;      // Clear signal: triggered by row-buffer response handshake
-  wire rcv_data_buf_ena = rcv_data_buf_set | rcv_data_buf_clr;
-
-  // rcv_data_buf_valid: A flag indicating the data buffer has been updated.
-  // This register simply latches the enable signal value.
-  reg rcv_data_buf_valid;
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      rcv_data_buf_valid <= 1'b0;
-    else
-      rcv_data_buf_valid <= rcv_data_buf_ena;
-  end
-
-  // rcv_data_buf: Data buffer to capture memory response data.
-  // It updates with the memory response when enabled.
-  reg [`E203_XLEN-1:0] rcv_data_buf;
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      rcv_data_buf <= {`E203_XLEN{1'b0}};
-    else if (rcv_data_buf_ena)
-      rcv_data_buf <= nice_icb_rsp_rdata;
-  end
-
-  // rcv_data_buf_idx: Index register for the data buffer.
-  // When the clear signal is asserted, it resets to 0;
-  // when the set signal is asserted, it captures the current row buffer counter value.
-  reg [ROWBUF_IDX_W-1:0] rcv_data_buf_idx;
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      rcv_data_buf_idx <= 0;
-    else if (rcv_data_buf_ena)
-    begin
-      if (rcv_data_buf_clr)
-        rcv_data_buf_idx <= 0;
-      else if (rcv_data_buf_set)
-        rcv_data_buf_idx <= rowbuf_cnt;
-    end
-  end
-
-
-  // rowsum accumulator
-  // This block accumulates received data to form the row sum.
-  // When a new data word is valid (rcv_data_buf_valid), if its index is 0, the accumulator is set
-  // to the received value; otherwise, the received data is added to the current accumulator value.
-  reg [`E203_XLEN-1:0] rowsum_acc;
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-      rowsum_acc <= 0;
-    else if (rcv_data_buf_valid)
-    begin
-      if (rcv_data_buf_idx == 0)
-        rowsum_acc <= rcv_data_buf;         // Set accumulator on first valid data
-      else
-        rowsum_acc <= rowsum_acc + rcv_data_buf; // Add subsequent data
-    end
-  end
-
-  // Define rowsum_done as when in ROWSUM state and the response handshake occurs.
-  assign rowsum_done = state_is_rowsum & nice_rsp_hsked;
-
-  // The final row sum result is held in rowsum_acc.
-  wire [`E203_XLEN-1:0] rowsum_res = rowsum_acc;
-
-  // Define a flag for intermediate accumulation (i.e., when the received data is not the first element)
-  wire rowsum_acc_flg = rcv_data_buf_valid & (rcv_data_buf_idx != 0);
-
-  // Generate the response valid signal for rowsum:
-  // It is asserted when in ROWSUM state, the received data index equals clonum,
-  // and no intermediate accumulation is pending.
-  assign nice_rsp_valid_rowsum = state_is_rowsum & (rcv_data_buf_idx == clonum) & ~rowsum_acc_flg;
-
-  // Generate the command valid signal for rowsum:
-  // It is asserted in ROWSUM state when the received data index is less than clonum and
-  // no intermediate accumulation is pending.
-  wire nice_icb_cmd_valid_rowsum = state_is_rowsum & (rcv_data_buf_idx < clonum) & ~rowsum_acc_flg;
-
-
-  //////////// 4. custom3_mul_loada
+  //////////// 1. custom3_mul_loada
   localparam matrix_size_A   = 16;
 
   integer mul_loada_cnt;
@@ -497,7 +233,7 @@ module e203_subsys_nice_core (
   wire nice_icb_cmd_valid_mul_loada = state_is_mul_loada & (mul_loada_cnt < matrix_size_A);
 
 
-  //////////// 5. custom3_mul_loadb
+  //////////// 2. custom3_mul_loadb
   localparam matrix_size_B   = 12;
   localparam systolic_size   = 4; // systolic array size
 
@@ -727,8 +463,10 @@ module e203_subsys_nice_core (
 
   localparam matrix_size_C = 12;
   reg signed [DATA_WIDTH-1:0] mul_cals_reg [0:matrix_size_C-1];
-
+  
   integer mul_cals_cmd_cnt;
+  wire nice_icb_cmd_hsked;
+
   wire mul_cals_store        = mul_cals_cnt >= 6;
   wire mul_cals_cmd_cnt_done = (mul_cals_cmd_cnt == matrix_size_C);
   wire mul_cals_cmd_hsked    = state_is_mul_cals & nice_icb_cmd_hsked;
@@ -859,44 +597,6 @@ module e203_subsys_nice_core (
   end
   
 
-  //////////// rowbuf
-  // The row buffer supports three access modes:
-  // 1. LBUF: Write data from memory into rowbuf at index "lbuf_cnt".
-  // 2. ROWSUM: Update rowbuf at index "rcv_data_buf_idx" by accumulating the received data.
-  // 3. SBUF: Read from rowbuf for store operations.
-
-  reg [`E203_XLEN-1:0] rowbuf_r [0:ROWBUF_DP-1];
-
-  always @(posedge nice_clk or negedge nice_rst_n)
-  begin
-    if (!nice_rst_n)
-    begin
-      for (i = 0; i < ROWBUF_DP; i = i + 1)
-        rowbuf_r[i] <= {`E203_XLEN{1'b0}};
-    end
-    else
-    begin
-      // LBUF write: if in LBUF state and memory response handshake occurs,
-      // write the memory response data to the row buffer at index given by lbuf_cnt.
-      if (state_is_lbuf && nice_icb_rsp_hsked)
-      begin
-        rowbuf_r[lbuf_cnt] <= nice_icb_rsp_rdata;
-      end
-
-      // ROWSUM write: when new data is valid, update (accumulate) the row buffer entry.
-      // The current value is read, added with the new data (rcv_data_buf), and written back.
-      if (rcv_data_buf_valid)
-      begin
-        rowbuf_r[rcv_data_buf_idx] <= rowbuf_r[rcv_data_buf_idx] + rcv_data_buf;
-      end
-    end
-  end
-
-  // For SBUF operation, the read data can be obtained as:
-  // wire [`E203_XLEN-1:0] sbuf_rdata = rowbuf_reg[sbuf_idx];
-  // (where sbuf_idx is determined by the SBUF control logic)
-
-
   //////////// mem aacess addr management
   // The memory address accumulator is updated when any of the following operations
   // (custom3_lbuf, custom3_sbuf, custom3_rowsum) are enabled.
@@ -909,16 +609,12 @@ module e203_subsys_nice_core (
   assign nice_icb_cmd_hsked = nice_icb_cmd_valid & nice_icb_cmd_ready;
 
   // Determine individual enable signals for each operation
-  wire lbuf_maddr_ena       = (state_is_idle & custom3_lbuf       & nice_icb_cmd_hsked) | (state_is_lbuf       & nice_icb_cmd_hsked);
-  wire sbuf_maddr_ena       = (state_is_idle & custom3_sbuf       & nice_icb_cmd_hsked) | (state_is_sbuf       & nice_icb_cmd_hsked);
-  wire rowsum_maddr_ena     = (state_is_idle & custom3_rowsum     & nice_icb_cmd_hsked) | (state_is_rowsum     & nice_icb_cmd_hsked);
   wire mul_loada_maddr_ena  = (state_is_idle & custom3_mul_loada  & nice_icb_cmd_hsked) | (state_is_mul_loada  & nice_icb_cmd_hsked);
   wire mul_loadb_maddr_ena  = (state_is_idle & custom3_mul_loadb  & nice_icb_cmd_hsked) | (state_is_mul_loadb  & nice_icb_cmd_hsked);
   wire mul_cals_maddr_ena   = (state_is_mul_cals & mul_cals_store);
 
   // Combine the enable signals for the memory address update
-  wire maddr_ena = lbuf_maddr_ena      | sbuf_maddr_ena      | rowsum_maddr_ena   |
-                   mul_loada_maddr_ena | mul_loadb_maddr_ena | mul_cals_maddr_ena;
+  wire maddr_ena = mul_loada_maddr_ena | mul_loadb_maddr_ena | mul_cals_maddr_ena;
 
   // When in IDLE state, use the base address from nice_req_rs1; otherwise, use the current accumulator value.
   wire maddr_ena_idle = (maddr_ena & state_is_idle) | (mul_cals_cnt == 6);
@@ -971,12 +667,11 @@ module e203_subsys_nice_core (
 
   // The NICE core provides a valid response if any of the three operations (rowsum, sbuf, lbuf)
   // signals a valid result.
-  assign nice_rsp_valid = nice_rsp_valid_rowsum    | nice_rsp_valid_sbuf      | nice_rsp_valid_lbuf     | 
-                          nice_rsp_valid_mul_loada | nice_rsp_valid_mul_loadb | nice_rsp_valid_mul_cals;
+  assign nice_rsp_valid = nice_rsp_valid_mul_loada | nice_rsp_valid_mul_loadb | nice_rsp_valid_mul_cals;
 
   // When in the ROWSUM state, the response data is the accumulated row sum;
   // in other states, it is typically zero or unused here.
-  assign nice_rsp_rdat  = {`E203_XLEN{state_is_rowsum}} & rowsum_res;
+  assign nice_rsp_rdat  = {`E203_XLEN{1'b0}}; //{`E203_XLEN{state_is_rowsum}} & rowsum_res;
 
   // Indicate a memory access bus error if a valid memory response indicates an error.
   // (Optionally, an illegal-instruction check can also be included if needed.)
@@ -991,7 +686,6 @@ module e203_subsys_nice_core (
   assign nice_icb_rsp_ready = 1'b1;
 
   // SBUF uses sbuf_cmd_cnt to index into rowbuf when writing to memory
-  wire [ROWBUF_IDX_W-1:0] sbuf_idx = sbuf_cmd_cnt;
   wire [5:0] cals_idx = mul_cals_cmd_cnt;
 
   // Generate the memory command valid signal. It is asserted if:
@@ -1001,9 +695,6 @@ module e203_subsys_nice_core (
   // 4. ROWSUM logic indicates a need to read additional data from memory.
   assign nice_icb_cmd_valid =
          (state_is_idle & nice_req_valid & custom_mem_op)
-         | nice_icb_cmd_valid_lbuf
-         | nice_icb_cmd_valid_sbuf
-         | nice_icb_cmd_valid_rowsum
          | nice_icb_cmd_valid_mul_loada
          | nice_icb_cmd_valid_mul_loadb
          | nice_icb_cmd_valid_mul_cals;
@@ -1019,12 +710,11 @@ module e203_subsys_nice_core (
   // - In SBUF state, use write.
   // - Otherwise, default to read.
   assign nice_icb_cmd_read = (state_is_idle & custom_mem_op)
-         ? (custom3_lbuf | custom3_rowsum | custom3_mul_loada | custom3_mul_loadb)
-         : ((state_is_sbuf | mul_cals_maddr_ena) ? 1'b0 : 1'b1);
+         ? (custom3_mul_loada | custom3_mul_loadb)
+         : ((mul_cals_maddr_ena) ? 1'b0 : 1'b1);
 
   // Select the write data when in SBUF state or about to start SBUF from IDLE.
-  assign nice_icb_cmd_wdata = ((state_is_idle & custom3_sbuf) | state_is_sbuf) ? rowbuf_r[sbuf_idx] : 
-                              mul_cals_maddr_ena ? mul_cals_reg[cals_idx] :
+  assign nice_icb_cmd_wdata = mul_cals_maddr_ena ? mul_cals_reg[cals_idx] :
                               {`E203_XLEN{1'b0}};
 
   // For simplicity, the write mask is not assigned in this design. If needed,
@@ -1036,8 +726,7 @@ module e203_subsys_nice_core (
 
   // Assert 'nice_mem_holdup' when in any multi-cycle memory state
   // (LBUF, SBUF, or ROWSUM) to stall the core if necessary.
-  assign nice_mem_holdup = state_is_lbuf      | state_is_sbuf      | state_is_rowsum   | 
-                           state_is_mul_loada | state_is_mul_loadb | state_is_mul_cals;
+  assign nice_mem_holdup = state_is_mul_loada | state_is_mul_loadb | state_is_mul_cals;
 
 
   ////////////////////////////////////////////////////////////

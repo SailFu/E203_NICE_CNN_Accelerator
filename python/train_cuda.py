@@ -23,18 +23,18 @@ test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=64, s
 class SimpleCNN(nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=0)
-        self.conv2 = nn.Conv2d(4, 2, kernel_size=3, stride=1, padding=0)
-        self.fc1 = nn.Linear(2 * 5 * 5, 10)
+        self.conv1 = nn.Conv2d(1, 5, kernel_size=3, stride=1, padding=0)
+        self.conv2 = nn.Conv2d(5, 5, kernel_size=3, stride=1, padding=0)
+        self.fc1 = nn.Linear(5 * 2 * 2, 10)
         self.fc2 = nn.Linear(10, 10)
 
     def forward(self, x):
-        # 注意，这里用了 F.relu(...) 而不是 nn.ReLU 模块
+        x = F.max_pool2d(x, 2)
         x = F.relu(self.conv1(x))
         x = F.max_pool2d(x, 2)
         x = F.relu(self.conv2(x))
         x = F.max_pool2d(x, 2)
-        x = x.view(-1, 2 * 5 * 5)
+        x = x.view(-1, 5 * 2 * 2)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
@@ -43,7 +43,7 @@ model = SimpleCNN().to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-num_epochs = 20
+num_epochs = 100
 
 model.train()
 
@@ -103,22 +103,20 @@ class QuantizableSimpleCNN(nn.Module):
     def __init__(self):
         super(QuantizableSimpleCNN, self).__init__()
         self.quant = QuantStub()
-        self.conv1 = nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=0)
-        self.conv2 = nn.Conv2d(4, 2, kernel_size=3, stride=1, padding=0)
-        self.fc1 = nn.Linear(2 * 5 * 5, 10)
+        self.conv1 = nn.Conv2d(1, 5, kernel_size=3, stride=1, padding=0)
+        self.conv2 = nn.Conv2d(5, 5, kernel_size=3, stride=1, padding=0)
+        self.fc1 = nn.Linear(5 * 2 * 2, 10)
         self.fc2 = nn.Linear(10, 10)
         self.dequant = DeQuantStub()
 
     def forward(self, x):
         x = self.quant(x)
+        x = F.max_pool2d(x, 2)
         x = F.relu(self.conv1(x))
         x = F.max_pool2d(x, 2)
         x = F.relu(self.conv2(x))
         x = F.max_pool2d(x, 2)
-
-        # 将 x.view(...) 替换为 x.reshape(...)
-        x = x.reshape(-1, 2 * 5 * 5)
-
+        x = x.reshape(-1, 5 * 2 * 2)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         x = self.dequant(x)
