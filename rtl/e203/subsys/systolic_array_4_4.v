@@ -15,40 +15,40 @@ module systolic_array_4_4 #(
     input  wire                    array_rst_n,
 
     // left
-		input  wire                    array_en_left_0_0,
-		input  wire                    array_en_left_1_0,
-		input  wire                    array_en_left_2_0,
-		input  wire                    array_en_left_3_0,
-		input  wire [DATA_WIDTH-1:0]   array_data_left_0_0,	
-		input  wire [DATA_WIDTH-1:0]   array_data_left_1_0,
-		input  wire [DATA_WIDTH-1:0]   array_data_left_2_0,
-		input  wire [DATA_WIDTH-1:0]   array_data_left_3_0,
+	input  wire                    array_en_left_0_0,
+	input  wire                    array_en_left_1_0,
+	input  wire                    array_en_left_2_0,
+	input  wire                    array_en_left_3_0,
+	input  wire [DATA_WIDTH-1:0]   array_data_left_0_0,	
+	input  wire [DATA_WIDTH-1:0]   array_data_left_1_0,
+	input  wire [DATA_WIDTH-1:0]   array_data_left_2_0,
+	input  wire [DATA_WIDTH-1:0]   array_data_left_3_0,
 
-		// up
-		input  wire                    array_en_up_0_0,
-		input  wire                    array_en_up_0_1,
-		input  wire                    array_en_up_0_2,
-		input  wire                    array_en_up_0_3,
-		input  wire [DATA_WIDTH-1:0]   array_data_up_0_0,
-		input  wire [DATA_WIDTH-1:0]   array_data_up_0_1,
-		input  wire [DATA_WIDTH-1:0]   array_data_up_0_2,
-		input  wire [DATA_WIDTH-1:0]   array_data_up_0_3,
+	// up
+	input  wire                    array_en_up_0_0,
+	input  wire                    array_en_up_0_1,
+	input  wire                    array_en_up_0_2,
+	input  wire                    array_en_up_0_3,
+	input  wire [DATA_WIDTH-1:0]   array_data_up_0_0,
+	input  wire [DATA_WIDTH-1:0]   array_data_up_0_1,
+	input  wire [DATA_WIDTH-1:0]   array_data_up_0_2,
+	input  wire [DATA_WIDTH-1:0]   array_data_up_0_3,
 
-		// down
-		output wire                    array_en_down_3_0,
-		output wire                    array_en_down_3_1,
-		output wire                    array_en_down_3_2,
-		output wire                    array_en_down_3_3,
-		output wire [DATA_WIDTH-1:0]   array_data_down_3_0,
-		output wire [DATA_WIDTH-1:0]   array_data_down_3_1,
-		output wire [DATA_WIDTH-1:0]   array_data_down_3_2,
-		output wire [DATA_WIDTH-1:0]   array_data_down_3_3,
+	// down
+	output wire                    array_en_down_3_0,
+	output wire                    array_en_down_3_1,
+	output wire                    array_en_down_3_2,
+	output wire                    array_en_down_3_3,
+	output wire [DATA_WIDTH-1:0]   array_data_down_3_0,
+	output wire [DATA_WIDTH-1:0]   array_data_down_3_1,
+	output wire [DATA_WIDTH-1:0]   array_data_down_3_2,
+	output wire [DATA_WIDTH-1:0]   array_data_down_3_3,
 
-		// control
-		input wire                     array_mode_0_0, array_mode_0_1, array_mode_0_2, array_mode_0_3,
-		input wire                     array_mode_1_0, array_mode_1_1, array_mode_1_2, array_mode_1_3,
-		input wire                     array_mode_2_0, array_mode_2_1, array_mode_2_2, array_mode_2_3,
-		input wire                     array_mode_3_0, array_mode_3_1, array_mode_3_2, array_mode_3_3
+	// control
+	input wire                     array_mode_0_0, array_mode_0_1, array_mode_0_2, array_mode_0_3,
+	input wire                     array_mode_1_0, array_mode_1_1, array_mode_1_2, array_mode_1_3,
+	input wire                     array_mode_2_0, array_mode_2_1, array_mode_2_2, array_mode_2_3,
+	input wire                     array_mode_3_0, array_mode_3_1, array_mode_3_2, array_mode_3_3
 		
   );
 

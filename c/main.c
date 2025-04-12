@@ -22,7 +22,7 @@ int main(void)
             input_matrix[i][j] = value++;
 
     int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE] = {
-        {   {  0,  1,  0 },
+        {   {  1,  1,  0 },
             {  1, -4,  1 },
             {  0,  1,  0 }
         },
@@ -44,20 +44,26 @@ int main(void)
         }
     };
 
-    int output_matrix[NUM_KERNELS][OUT_ROWS][OUT_COLS];
+    int output_matrix[NUM_KERNELS][OUT_ROWS][OUT_COLS] = {0};
 
     begin_instret  =  __get_rv_instret();
     begin_cycle    =  __get_rv_cycle();
 
-    normal_conv(input_matrix, kernels, output_matrix);
+    //normal_conv(input_matrix, kernels, output_matrix);
+    nice_conv(input_matrix, kernels, output_matrix);
 
     end_instret    = __get_rv_instret();
     end_cycle      = __get_rv_cycle();
 
-    instret_normal   = end_instret - begin_instret;
-    cycle_normal     = end_cycle - begin_cycle;
+    instret_nice   = end_instret - begin_instret;
+    cycle_nice     = end_cycle - begin_cycle;
 
-    printf("\nNormal instret: %d, cycle: %d \n", instret_normal, cycle_normal); 
+    printf("\nNICE instret: %d, cycle: %d \n", instret_nice, cycle_nice); 
+
+    // instret_normal   = end_instret - begin_instret;
+    // cycle_normal     = end_cycle - begin_cycle;
+
+    // printf("\nNormal instret: %d, cycle: %d \n", instret_normal, cycle_normal); 
 
 
     printf("\n**************************************************\n");
