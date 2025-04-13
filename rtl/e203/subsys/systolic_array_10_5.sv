@@ -25,7 +25,7 @@ module systolic_array_10_5 #(
     output logic  [COLS-1:0]             en_down,
     output logic  [DATA_WIDTH-1:0]       data_down [COLS],
 
-    input  wire   [ROWS-1:0][COLS-1:0]   mode
+    input  wire                          mode      [ROWS][COLS]
 );
 
     // --------------------------------------------------------------------------------
