@@ -10,7 +10,7 @@ int main(void)
 {
     printf("\n***********************************************\n");
     printf("***** begin to test the NICE accelerator ******\n");
-    printf("***********************************************\n\n");
+    printf("***********************************************\n");
 
     unsigned int begin_instret, end_instret, instret_normal, instret_nice;
     unsigned int begin_cycle,   end_cycle,   cycle_normal,   cycle_nice;
@@ -26,17 +26,17 @@ int main(void)
             {  1, -4,  1 },
             {  0,  1,  0 }
         },
-        {   {  1,  0, -1 },
-            {  2,  0, -2 },
-            {  1,  0, -1 }
+        {   {  1,  2, -1 },
+            {  2,  -1, -2 },
+            {  1,  6, -1 }
         },
         {   {  1,  2,  1 },
-            {  0,  0,  0 },
+            {  3,  0,  0 },
             { -1, -2, -1 }
         },
-        {   {  0, -1,  0 },
+        {   {  0, -1,  9 },
             { -1,  5, -1 },
-            {  0, -1,  0 }
+            {  -7, -1,  0 }
         },
         {   {  1,  1,  1 },
             {  1,  1,  1 },
@@ -44,38 +44,61 @@ int main(void)
         }
     };
 
-    int output_matrix[NUM_KERNELS][OUT_ROWS][OUT_COLS] = {0};
+    int output_matrix_normal[NUM_KERNELS][OUT_ROWS][OUT_COLS] = {0};
+    int output_matrix_nice[NUM_KERNELS][OUT_ROWS][OUT_COLS] = {0};
 
     begin_instret  =  __get_rv_instret();
     begin_cycle    =  __get_rv_cycle();
 
-    //normal_conv(input_matrix, kernels, output_matrix);
-    nice_conv(input_matrix, kernels, output_matrix);
+    // Normal convolution without NICE accelerator
+    normal_conv(input_matrix, kernels, output_matrix_normal);
+
+    end_instret    = __get_rv_instret();
+    end_cycle      = __get_rv_cycle();
+
+    instret_normal = end_instret - begin_instret;
+    cycle_normal   = end_cycle - begin_cycle;
+
+    begin_instret  =  __get_rv_instret();
+    begin_cycle    =  __get_rv_cycle();
+
+    // NICE accelerator convolution
+    nice_conv(input_matrix, kernels, output_matrix_nice);
 
     end_instret    = __get_rv_instret();
     end_cycle      = __get_rv_cycle();
 
     instret_nice   = end_instret - begin_instret;
     cycle_nice     = end_cycle - begin_cycle;
-
+    
+    printf("\nNormal instret: %d, cycle: %d \n", instret_normal, cycle_normal);
     printf("\nNICE instret: %d, cycle: %d \n", instret_nice, cycle_nice); 
 
-    for (int n = 0; n < NUM_KERNELS; n++) 
-    {
-        printf("\nConvlolution Output %d (12*12):\n", n);
+    int correct_cnt = 0;
+    for (int n = 0; n < NUM_KERNELS; n++) {
         for (int i = 0; i < OUT_ROWS; i++) {
             for (int j = 0; j < OUT_COLS; j++) {
-                printf("%6d ", output_matrix[n][i][j]);
+                if (output_matrix_normal[n][i][j] == output_matrix_nice[n][i][j])
+                    correct_cnt++;
             }
-            printf("\n");
         }
     }
+    if (correct_cnt == NUM_KERNELS * OUT_ROWS * OUT_COLS) {
+        printf("\nAll results are correct!\n");
+    } else {
+        printf("\nResults are incorrect! Errors count: %d\n", NUM_KERNELS * OUT_ROWS * OUT_COLS - correct_cnt);
+    }
 
-    // instret_normal   = end_instret - begin_instret;
-    // cycle_normal     = end_cycle - begin_cycle;
-
-    // printf("\nNormal instret: %d, cycle: %d \n", instret_normal, cycle_normal); 
-
+    // for (int n = 0; n < NUM_KERNELS; n++) 
+    // {
+    //     printf("\nConvlolution Output %d (12*12):\n", n);
+    //     for (int i = 0; i < OUT_ROWS; i++) {
+    //         for (int j = 0; j < OUT_COLS; j++) {
+    //             printf("%6d ", output_matrix[n][i][j]);
+    //         }
+    //         printf("\n");
+    //     }
+    // }
 
     printf("\n**************************************************\n");
     printf("******** end of test the NICE accelerator ********\n");
