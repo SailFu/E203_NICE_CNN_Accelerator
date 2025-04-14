@@ -91,8 +91,11 @@ void normal_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KE
 void nice_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE], int output[NUM_KERNELS][OUT_ROWS][OUT_COLS])
 {
     custom_load_conv1((uintptr_t)kernels[0][0]);
+
     custom_load_input((uintptr_t)input[0]);
-    //custom_start((uintptr_t)output[0][0]);
+
+    custom_start((uintptr_t)output[0][0]);
+    
 }
 
 

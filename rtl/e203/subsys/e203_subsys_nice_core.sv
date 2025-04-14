@@ -498,8 +498,8 @@ module e203_subsys_nice_core (
     .ROWS(SA_ROWS),
     .COLS(SA_COLS)
   ) u_systolic_array_10_5 (
-    .clk       (sa_nice_clk),
-    .rst_n     (sa_nice_rst_n),
+    .clk       (nice_clk),
+    .rst_n     (nice_rst_n),
 
     .en_left   (sa_en_left),
     .data_left (sa_data_left),
@@ -577,7 +577,7 @@ module e203_subsys_nice_core (
   //////////// conv_start
   localparam output_width = input_width - conv1_width + 1;
   localparam output_size  = output_width * output_width;
-  localparam conv_start_cycles = output_size + SA_ROWS; /////////////////
+  localparam conv_start_cycles = output_size * conv1_num + SA_ROWS + 2;
 
   integer conv_start_cnt;
   wire conv_start_cnt_done    = (conv_start_cnt == conv_start_cycles);
@@ -605,27 +605,10 @@ module e203_subsys_nice_core (
   wire conv_start_cmd_store        = conv_start_cnt >= (SA_ROWS + 2);
   wire conv_start_cmd_store_first  = conv_start_cnt == (SA_ROWS + 2);
   wire conv_start_cmd_cnt_done     = (conv_start_cmd_cnt == output_size);
-  // wire conv_start_cmd_hsked    = state_is_start_conv & nice_icb_cmd_hsked;
-  // wire conv_start_cmd_cnt_incr = conv_start_cmd_hsked & ~conv_start_cmd_cnt_done;
-
-  // always @(posedge nice_clk or negedge nice_rst_n) begin
-  //   if (!nice_rst_n)
-  //     conv_start_cmd_cnt <= 0;
-  //   else 
-  //   if (conv_start_cmd_store) begin 
-  //     if (conv_start_cmd_cnt_done)
-  //     conv_start_cmd_cnt <= 0;
-  //     else if (conv_start_cmd_cnt_incr)
-  //       conv_start_cmd_cnt <= conv_start_cmd_cnt + 1;
-  //     else
-  //       conv_start_cmd_cnt <= conv_start_cmd_cnt;
-  //   end
-  // end
 
   // valid signals
   wire nice_rsp_valid_start_conv     = state_is_start_conv & conv_start_cnt_done & nice_icb_rsp_valid;
   wire nice_icb_cmd_valid_start_conv = state_is_start_conv & (conv_start_cnt < conv_start_cycles) & conv_start_cmd_store;
-
 
   reg [$clog2(conv1_num)   -1:0]  output_cmd_num_idx;
   reg [$clog2(output_width)-1:0]  output_cmd_row_idx;
@@ -668,27 +651,18 @@ module e203_subsys_nice_core (
       output_row_idx <= '{default: '0};
       output_col_idx <= '{default: '0};
     end 
-    else if (state_is_start_conv) begin
-      if (output_col_idx[0] == output_width - 1) begin
-        for (i = 0; i < conv1_rc; i = i + 1) begin
+    else if (conv_start_cnt) begin // >=1
+      for (i = 0; i < conv1_rc; i = i + 1) begin
+        if (output_col_idx[i] == output_width - 1) begin
           output_col_idx[i] <= 0;
-        end
-        if (output_row_idx[0] == output_width - 1) begin
-          for (i = 0; i < conv1_rc; i = i + 1) begin
-            output_row_idx[i] <= 0;
-          end
-        end
+          if (output_row_idx[i] == output_width - 1)
+              output_row_idx[i] <= 0;
+          else
+            output_row_idx[i] <= output_row_idx[i] + 1;
+        end 
         else begin
-          for (i = 0; i < conv1_rc; i = i + 1) begin
-            if (i <= conv_start_cnt)
-              output_row_idx[i] <= output_row_idx[i] + 1;
-          end
-        end
-      end 
-      else begin
-        for (i = 0; i < conv1_rc; i = i + 1) begin
-          if (i <= conv_start_cnt)
-            output_col_idx[0] <= output_col_idx[0] + 1;
+          if (i <= conv_start_cnt-1)
+            output_col_idx[i] <= output_col_idx[i] + 1;
         end
       end
     end
@@ -703,27 +677,18 @@ module e203_subsys_nice_core (
       output_store_row_idx <= '{default: '0};
       output_store_col_idx <= '{default: '0};
     end 
-    else if (conv_start_cnt >= (conv1_rc + 2)) begin // >=11
-      if (output_store_col_idx[0] == output_width - 1) begin
-        for (i = 0; i < conv1_num; i = i + 1) begin
+    else if (conv_start_cnt >= (SA_ROWS + 1)) begin // >=11
+      for (i = 0; i < conv1_num; i = i + 1) begin
+        if (output_store_col_idx[i] == output_width - 1) begin
           output_store_col_idx[i] <= 0;
-        end
-        if (output_store_row_idx[0] == output_width - 1) begin
-          for (i = 0; i < conv1_num; i = i + 1) begin
+          if (output_store_row_idx[i] == output_width - 1)
             output_store_row_idx[i] <= 0;
-          end
-        end
-        else begin
-          for (i = 0; i < conv1_num; i = i + 1) begin
-            if (i < (conv_start_cnt - (conv1_rc + 1)))
+          else
             output_store_row_idx[i] <= output_store_row_idx[i] + 1;
-          end
-        end
-      end 
-      else begin
-        for (i = 0; i < conv1_num; i = i + 1) begin
+        end 
+        else begin
           if (i < (conv_start_cnt - (conv1_rc + 1)))
-          output_store_col_idx[0] <= output_store_col_idx[0] + 1;
+            output_store_col_idx[i] <= output_store_col_idx[i] + 1;
         end
       end
     end
@@ -778,7 +743,7 @@ module e203_subsys_nice_core (
         if (conv_start_cnt == (output_size + conv1_rc))
           sa_en_left <= '0;
       end
-      else if ((conv_start_cnt > (output_size + conv1_rc)) && (conv_start_cnt <= (output_size + conv1_rc))) begin // 154-158
+      else if ((conv_start_cnt > (output_size + conv1_rc)) && (conv_start_cnt <= (output_size + conv1_rc + SA_COLS))) begin // 154-158
         for (i = 0; i < conv1_num; i = i + 1) begin
           if (i >= (conv_start_cnt - (output_size + conv1_rc + 1)))
             output_reg[i][output_store_row_idx[i]][output_store_col_idx[i]] <= sa_data_down[i];

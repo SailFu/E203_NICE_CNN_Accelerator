@@ -17,15 +17,15 @@ module systolic_array_10_5 #(
     input  logic                         rst_n,
 
     input  logic  [ROWS-1:0]             en_left,
-    input  wire   [DATA_WIDTH-1:0]       data_left [ROWS],
+    input  logic  [DATA_WIDTH-1:0]       data_left [ROWS],
 
     input  logic  [COLS-1:0]             en_up,
-    input  wire   [DATA_WIDTH-1:0]       data_up   [COLS],
+    input  logic  [DATA_WIDTH-1:0]       data_up   [COLS],
 
     output logic  [COLS-1:0]             en_down,
     output logic  [DATA_WIDTH-1:0]       data_down [COLS],
 
-    input  wire                          mode      [ROWS][COLS]
+    input  logic                         mode      [ROWS][COLS]
 );
 
     // --------------------------------------------------------------------------------

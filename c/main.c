@@ -60,6 +60,17 @@ int main(void)
 
     printf("\nNICE instret: %d, cycle: %d \n", instret_nice, cycle_nice); 
 
+    for (int n = 0; n < NUM_KERNELS; n++) 
+    {
+        printf("\nConvlolution Output %d (12*12):\n", n);
+        for (int i = 0; i < OUT_ROWS; i++) {
+            for (int j = 0; j < OUT_COLS; j++) {
+                printf("%6d ", output_matrix[n][i][j]);
+            }
+            printf("\n");
+        }
+    }
+
     // instret_normal   = end_instret - begin_instret;
     // cycle_normal     = end_cycle - begin_cycle;
 

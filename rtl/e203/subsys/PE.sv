@@ -8,24 +8,24 @@
 // ====================================================================
 
 module PE  #(
-    parameter DATA_WIDTH = 32
+    parameter int DATA_WIDTH = 32
   )(
     // system
-    input  wire        PE_clk,
-    input  wire        PE_rst_n,
-
-    // control
-    input  wire        PE_mode,      // fix weight
-    input  wire        PE_en_up,     // store mode
-    input  wire        PE_en_left,   // calculation mode
-    output wire        PE_en_right,
-    output wire        PE_en_down,
-
-    // data
-    input  wire signed [DATA_WIDTH-1:0]      PE_data_up,
-    input  wire signed [DATA_WIDTH-1:0]      PE_data_left,
-    output wire signed [DATA_WIDTH-1:0]      PE_data_right,
-    output wire signed [DATA_WIDTH-1:0]      PE_data_down
+    input  logic                            PE_clk,
+    input  logic                            PE_rst_n,
+                  
+    // control                    
+    input  logic                            PE_mode,      // fix weight
+    input  logic                            PE_en_up,     // store mode
+    input  logic                            PE_en_left,   // calculation mode
+    output logic                            PE_en_right,
+    output logic                            PE_en_down,
+  
+    // data  
+    input  logic signed [DATA_WIDTH-1:0]    PE_data_up,
+    input  logic signed [DATA_WIDTH-1:0]    PE_data_left,
+    output logic signed [DATA_WIDTH-1:0]    PE_data_right,
+    output logic signed [DATA_WIDTH-1:0]    PE_data_down
   );
 
 
