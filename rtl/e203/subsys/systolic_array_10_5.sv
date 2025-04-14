@@ -29,7 +29,6 @@ module systolic_array_10_5 #(
 );
 
     // --------------------------------------------------------------------------------
-    // We define internal 2D signals for vertical and horizontal data/enable propagation.
     // en_vert[i][j] and data_vert[i][j] represent signals from row (i-1) to row i 
     //   at column j (vertical direction).
     // en_horz[i][j] and data_horz[i][j] represent signals from column (j-1) to column j 
@@ -46,7 +45,7 @@ module systolic_array_10_5 #(
     logic [ROWS-1:0][0:COLS][DATA_WIDTH-1:0] data_horz;
 
     // --------------------------------------------------------------------------------
-    // Connect the left boundary (i.e., for each row i at j=0) with en_left/data_left.
+    // Connect the left boundary with en_left/data_left.
     // --------------------------------------------------------------------------------
     for (genvar i = 0; i < ROWS; i++) begin
         assign en_horz[i][0]   = en_left[i];
@@ -54,7 +53,7 @@ module systolic_array_10_5 #(
     end
 
     // --------------------------------------------------------------------------------
-    // Connect the upper boundary (i.e., for each column j at i=0) with en_up/data_up.
+    // Connect the upper boundary with en_up/data_up.
     // --------------------------------------------------------------------------------
     for (genvar j = 0; j < COLS; j++) begin
         assign en_vert[0][j]   = en_up[j];
@@ -62,8 +61,7 @@ module systolic_array_10_5 #(
     end
 
     // --------------------------------------------------------------------------------
-    // Connect the bottom boundary (i.e., row index ROWS). 
-    // This is where we gather the outputs for each column j at the last row.
+    // Connect the bottom boundary
     // --------------------------------------------------------------------------------
     for (genvar j = 0; j < COLS; j++) begin : DOWN_CONNECT
         assign en_down[j]    = en_vert [ROWS][j];
@@ -72,12 +70,11 @@ module systolic_array_10_5 #(
 
     // --------------------------------------------------------------------------------
     // Generate the systolic array of ROWS×COLS Processing Elements (PE).
-    // For the last column (j=COLS-1), we instantiate PE_r, which has no right output.
+    // For the last column (j=COLS-1), instantiate PE_r, which has no right output.
     // --------------------------------------------------------------------------------
     for (genvar i = 0; i < ROWS; i++) begin : ROW_GEN
         for (genvar j = 0; j < COLS; j++) begin : COL_GEN
             if (j < COLS-1) begin
-                // Normal PE: outputs to the right (en_horz, data_horz) and downward (en_vert, data_vert).
                 PE #(
                     .DATA_WIDTH(DATA_WIDTH)
                 ) pe_inst (
@@ -97,7 +94,6 @@ module systolic_array_10_5 #(
                 );
             end
             else begin
-                // Last column uses PE_r: no right outputs, only downward.
                 PE_r #(
                     .DATA_WIDTH(DATA_WIDTH)
                 ) pe_r_inst (
