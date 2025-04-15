@@ -118,7 +118,7 @@ module e203_subsys_nice_core (
   localparam LOAD_FC2   = 4'd4;
   localparam LOAD_INPUT = 4'd5;
   localparam MOVE_CONV1 = 4'd6;
-  localparam START_CONV = 4'd7;
+  localparam CAL_CONV1  = 4'd7;
 
   // FSM state register
   integer state;
@@ -130,7 +130,7 @@ module e203_subsys_nice_core (
   wire state_is_load_fc2   = (state == LOAD_FC2);
   wire state_is_load_input = (state == LOAD_INPUT);
   wire state_is_move_conv1 = (state == MOVE_CONV1);
-  wire state_is_start_conv = (state == START_CONV);
+  wire state_is_cal_conv1  = (state == CAL_CONV1);
 
   // handshake success signals
   wire nice_req_hsked;
@@ -144,7 +144,7 @@ module e203_subsys_nice_core (
   wire load_fc2_done;
   wire load_input_done;
   wire move_conv1_done;
-  wire start_conv_done;
+  wire cal_conv1_done;
 
   // FSM state update using behavioral description
   always @(posedge nice_clk or negedge nice_rst_n)
@@ -215,16 +215,16 @@ module e203_subsys_nice_core (
 
         MOVE_CONV1: begin
           if (move_conv1_done)
-            state <= START_CONV;
+            state <= CAL_CONV1;
           else
             state <= MOVE_CONV1;
         end
 
-        START_CONV: begin
-          if (start_conv_done)
+        CAL_CONV1: begin
+          if (cal_conv1_done)
             state <= IDLE;
           else
-            state <= START_CONV;
+            state <= CAL_CONV1;
         end
 
         default:
@@ -532,7 +532,7 @@ module e203_subsys_nice_core (
 
 
   //////////// 5. custom3_load_input
-  localparam input_width  = 14;
+  localparam input_width  = 28;
   localparam input_size   = input_width * input_width;
 
   integer load_input_cnt;
@@ -700,184 +700,221 @@ module e203_subsys_nice_core (
   end
 
 
-  //////////// 7. conv_start
-  localparam output_width = input_width - conv1_width + 1;
-  localparam output_size  = output_width * output_width;
-  localparam conv_start_cycles = output_size * conv1_num + SA_ROWS + 2;
+  //////////// 7. cal_conv1
+  localparam conv1_output_width = input_width - conv1_width + 1;
+  localparam conv1_output_size  = conv1_output_width * conv1_output_width;
+  localparam cal_conv1_cycles   = conv1_output_size * conv1_num + SA_ROWS + 2;
 
-  integer conv_start_cnt;
-  wire conv_start_cnt_done    = (conv_start_cnt == conv_start_cycles);
-  wire conv_start_icb_rsp_hs  = state_is_start_conv;
-  wire conv_start_cnt_incr    = conv_start_icb_rsp_hs & ~conv_start_cnt_done;
-  assign start_conv_done      = conv_start_icb_rsp_hs & conv_start_cnt_done;
+  integer cal_conv1_cnt;
+  wire cal_conv1_cnt_done    = (cal_conv1_cnt == cal_conv1_cycles);
+  wire cal_conv1_icb_rsp_hs  = state_is_cal_conv1;
+  wire cal_conv1_cnt_incr    = cal_conv1_icb_rsp_hs & ~cal_conv1_cnt_done;
+  assign cal_conv1_done      = cal_conv1_icb_rsp_hs & cal_conv1_cnt_done;
 
   // conv_start_cnt accumulation
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n)
-      conv_start_cnt <= 0;
+    cal_conv1_cnt <= 0;
     else 
-    if (start_conv_done)
-      conv_start_cnt <= 0;
-    else if (conv_start_cnt_incr)
-      conv_start_cnt <= conv_start_cnt + 1;
+    if (cal_conv1_done)
+    cal_conv1_cnt <= 0;
+    else if (cal_conv1_cnt_incr)
+      cal_conv1_cnt <= cal_conv1_cnt + 1;
     else
-      conv_start_cnt <= conv_start_cnt;
+      cal_conv1_cnt <= cal_conv1_cnt;
   end
 
 
-  integer conv_start_cmd_cnt;
+  //integer conv_start_cmd_cnt;
 
   wire nice_icb_cmd_hsked;
 
-  wire conv_start_cmd_store        = conv_start_cnt >= (SA_ROWS + 2);
-  wire conv_start_cmd_store_first  = conv_start_cnt == (SA_ROWS + 2);
-  wire conv_start_cmd_cnt_done     = (conv_start_cmd_cnt == output_size);
+  wire cal_conv1_cmd_store         = cal_conv1_cnt >= (SA_ROWS + 2);
+  wire cal_conv1_cmd_store_first   = cal_conv1_cnt == (SA_ROWS + 2);
+  //wire conv_start_cmd_cnt_done     = (conv_start_cmd_cnt == output_size);
 
   // valid signals
-  wire nice_rsp_valid_start_conv     = state_is_start_conv & conv_start_cnt_done & nice_icb_rsp_valid;
-  wire nice_icb_cmd_valid_start_conv = state_is_start_conv & (conv_start_cnt < conv_start_cycles) & conv_start_cmd_store;
+  //wire nice_rsp_valid_cal_conv1     = state_is_cal_conv1 & cal_conv1_cnt_done & nice_icb_rsp_valid;
+  //wire nice_icb_cmd_valid_cal_conv1 = state_is_cal_conv1 & (cal_conv1_cnt < cal_conv1_cycles) & cal_conv1_cmd_store;
 
-  reg [$clog2(conv1_num)   -1:0]  output_cmd_num_idx;
-  reg [$clog2(output_width)-1:0]  output_cmd_row_idx;
-  reg [$clog2(output_width)-1:0]  output_cmd_col_idx;
+  reg [$clog2(conv1_num)   -1:0]        conv1_output_cmd_num_idx;
+  reg [$clog2(conv1_output_width)-1:0]  conv1_output_cmd_row_idx;
+  reg [$clog2(conv1_output_width)-1:0]  conv1_output_cmd_col_idx;
 
   // output_cmd_idx accumulation
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      output_cmd_num_idx <= '0;
-      output_cmd_row_idx <= '0;
-      output_cmd_col_idx <= '0;
-    end 
-    else if (conv_start_cmd_store) begin // >=11
-      if (output_cmd_col_idx == output_width - 1) begin
-        output_cmd_col_idx <= 0;
-        if (output_cmd_row_idx == output_width - 1) begin
-          output_cmd_row_idx <= 0;
-          if (output_cmd_num_idx == conv1_num - 1) begin
-            output_cmd_num_idx <= 0;
+      conv1_output_cmd_num_idx <= '0;
+      conv1_output_cmd_row_idx <= '0;
+      conv1_output_cmd_col_idx <= '0;
+    end
+    else if (cal_conv1_cmd_store) begin // >=11
+      if (conv1_output_cmd_col_idx == conv1_output_width - 1) begin
+        conv1_output_cmd_col_idx <= 0;
+        if (conv1_output_cmd_row_idx == conv1_output_width - 1) begin
+          conv1_output_cmd_row_idx <= 0;
+          if (conv1_output_cmd_num_idx == conv1_num - 1) begin
+            conv1_output_cmd_num_idx <= 0;
           end
           else begin
-            output_cmd_num_idx <= output_cmd_num_idx + 1;
+            conv1_output_cmd_num_idx <= conv1_output_cmd_num_idx + 1;
           end
         end
         else begin
-          output_cmd_row_idx <= output_cmd_row_idx + 1;
+          conv1_output_cmd_row_idx <= conv1_output_cmd_row_idx + 1;
         end
       end 
       else begin
-        output_cmd_col_idx <= output_cmd_col_idx + 1;
+        conv1_output_cmd_col_idx <= conv1_output_cmd_col_idx + 1;
       end
     end
   end
 
 
-  reg [$clog2(output_width)-1:0]  output_row_idx[conv1_rc];
-  reg [$clog2(output_width)-1:0]  output_col_idx[conv1_rc];
+  reg [($clog2(conv1_output_width))*2-1:0]  conv1_output_row_idx[conv1_rc];
+  reg [($clog2(conv1_output_width))*2-1:0]  conv1_output_col_idx[conv1_rc];
 
   // input matrix move to SA index accumulation
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      output_row_idx <= '{default: '0};
-      output_col_idx <= '{default: '0};
+      conv1_output_row_idx <= '{default: '0};
+      conv1_output_col_idx <= '{default: '0};
     end 
-    else if (conv_start_cnt) begin // >=1
+    else if (cal_conv1_cnt) begin // >=1
       for (i = 0; i < conv1_rc; i = i + 1) begin
-        if (output_col_idx[i] == output_width - 1) begin
-          output_col_idx[i] <= 0;
-          if (output_row_idx[i] == output_width - 1)
-              output_row_idx[i] <= 0;
+        if (conv1_output_col_idx[i] == conv1_output_width - 1) begin
+          conv1_output_col_idx[i] <= 0;
+          if (conv1_output_row_idx[i] == conv1_output_width - 1)
+          conv1_output_row_idx[i] <= 0;
           else
-            output_row_idx[i] <= output_row_idx[i] + 1;
+            conv1_output_row_idx[i] <= conv1_output_row_idx[i] + 2;
         end 
         else begin
-          if (i <= conv_start_cnt-1)
-            output_col_idx[i] <= output_col_idx[i] + 1;
+          if (i <= cal_conv1_cnt-1)
+          conv1_output_col_idx[i] <= conv1_output_col_idx[i] + 2;
         end
       end
     end
   end
 
 
-  reg [$clog2(output_width)-1:0]  output_store_row_idx[conv1_num];
-  reg [$clog2(output_width)-1:0]  output_store_col_idx[conv1_num];
+  reg [$clog2(conv1_output_width)-1:0]  conv1_output_store_row_idx[conv1_num];
+  reg [$clog2(conv1_output_width)-1:0]  conv1_output_store_col_idx[conv1_num];
 
   // output buffer index accumulation
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      output_store_row_idx <= '{default: '0};
-      output_store_col_idx <= '{default: '0};
+      conv1_output_store_row_idx <= '{default: '0};
+      conv1_output_store_col_idx <= '{default: '0};
     end 
-    else if (conv_start_cnt >= (SA_ROWS + 1)) begin // >=11
+    else if (cal_conv1_cnt >= (SA_ROWS + 1)) begin // >=11
       for (i = 0; i < conv1_num; i = i + 1) begin
-        if (output_store_col_idx[i] == output_width - 1) begin
-          output_store_col_idx[i] <= 0;
-          if (output_store_row_idx[i] == output_width - 1)
-            output_store_row_idx[i] <= 0;
+        if (conv1_output_store_col_idx[i] == conv1_output_width - 1) begin
+          conv1_output_store_col_idx[i] <= 0;
+          if (conv1_output_store_row_idx[i] == conv1_output_width - 1)
+          conv1_output_store_row_idx[i] <= 0;
           else
-            output_store_row_idx[i] <= output_store_row_idx[i] + 1;
+            conv1_output_store_row_idx[i] <= conv1_output_store_row_idx[i] + 1;
         end 
         else begin
-          if (i < (conv_start_cnt - (conv1_rc + 1)))
-            output_store_col_idx[i] <= output_store_col_idx[i] + 1;
+          if (i < (cal_conv1_cnt - (conv1_rc + 1)))
+          conv1_output_store_col_idx[i] <= conv1_output_store_col_idx[i] + 1;
         end
       end
     end
   end
 
 
-  localparam int output_row_offset[conv1_rc] = '{0, 0, 0, 1, 1, 1, 2, 2, 2};
-  localparam int output_col_offset[conv1_rc] = '{0, 1, 2, 0, 1, 2, 0, 1, 2};
+  localparam int conv1_output_row_offset[conv1_rc] = '{0, 0, 0, 2, 2, 2, 4, 4, 4};
+  localparam int conv1_output_col_offset[conv1_rc] = '{0, 2, 4, 0, 2, 4, 0, 2, 4};
 
-  reg signed [L_WIDTH-1:0]  output_reg[conv1_num][output_width][output_width];
+  function automatic reg signed [L_WIDTH-1:0] max4 (
+    input reg signed [L_WIDTH-1:0] a,
+    input reg signed [L_WIDTH-1:0] b,
+    input reg signed [L_WIDTH-1:0] c,
+    input reg signed [L_WIDTH-1:0] d
+  );
+    reg signed [L_WIDTH-1:0] tmp;
+    begin
+      tmp = a;
+      if (b > tmp)
+        tmp = b;
+      if (c > tmp)
+        tmp = c;
+      if (d > tmp)
+        tmp = d;
+      return tmp;
+    end
+  endfunction
+
+  reg signed [L_WIDTH-1:0]  conv1_output_reg[conv1_num][conv1_output_width][conv1_output_width];
 
   // move input data to systolic array, and store output data
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      sa_en_left   <= '0;
-      sa_data_left <= '{default: '0};
-      output_reg   <= '{default: '0};
+      sa_en_left       <= '0;
+      sa_data_left     <= '{default: '0};
+      conv1_output_reg <= '{default: '0};
     end
-    else if (state_is_start_conv & (conv_start_cnt > 0)) begin
-      if (conv_start_cnt == 1) begin // 1
+    else if (state_is_cal_conv1 & (cal_conv1_cnt > 0)) begin
+      if (cal_conv1_cnt == 1) begin // 1
         sa_en_left <= {SA_ROWS{1'b1}};
-        sa_data_left[1] <= input_reg[output_row_idx[0]][output_col_idx[0]];
+        sa_data_left[1] <= max4 (input_reg[conv1_output_row_idx[0]  ][conv1_output_col_idx[0]  ],
+                                 input_reg[conv1_output_row_idx[0]  ][conv1_output_col_idx[0]+1],
+                                 input_reg[conv1_output_row_idx[0]+1][conv1_output_col_idx[0]  ],
+                                 input_reg[conv1_output_row_idx[0]+1][conv1_output_col_idx[0]+1]);
       end 
-      else if ((conv_start_cnt > 1) && (conv_start_cnt <= conv1_rc)) begin // 2-9
-        for (i = 0; i < conv_start_cnt; i = i + 1)
-          sa_data_left[i+1] <= input_reg[output_row_idx[i]+output_row_offset[i]][output_col_idx[i]+output_col_offset[i]];
+      else if ((cal_conv1_cnt > 1) && (cal_conv1_cnt <= conv1_rc)) begin // 2-9
+        for (i = 0; i < cal_conv1_cnt; i = i + 1)
+          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
       end 
-      else if (conv_start_cnt == (conv1_rc + 1)) begin // 10
+      else if (cal_conv1_cnt == (conv1_rc + 1)) begin // 10
         for (i = 0; i < conv1_rc; i = i + 1)
-          sa_data_left[i+1] <= input_reg[output_row_idx[i]+output_row_offset[i]][output_col_idx[i]+output_col_offset[i]];
+          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
       end
-      else if ((conv_start_cnt > (conv1_rc + 1)) && (conv_start_cnt <= (conv1_rc + 1 + conv1_num))) begin // 11-15
+      else if ((cal_conv1_cnt > (conv1_rc + 1)) && (cal_conv1_cnt <= (conv1_rc + 1 + conv1_num))) begin // 11-15
         for (i = 0; i < conv1_rc; i = i + 1)
-          sa_data_left[i+1] <= input_reg[output_row_idx[i]+output_row_offset[i]][output_col_idx[i]+output_col_offset[i]];
-        for (i = 0; i < (conv_start_cnt - (conv1_rc + 1)); i = i + 1) 
-          output_reg[i][output_store_row_idx[i]][output_store_col_idx[i]] <= sa_data_down[i];
+          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
+        for (i = 0; i < (cal_conv1_cnt - (conv1_rc + 1)); i = i + 1) 
+        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
       end
-      else if ((conv_start_cnt > (conv1_rc + 1 + conv1_num)) && (conv_start_cnt <= output_size)) begin // 16-144
+      else if ((cal_conv1_cnt > (conv1_rc + 1 + conv1_num)) && (cal_conv1_cnt <= conv1_output_size)) begin // 16-144
         for (i = 0; i < conv1_rc; i = i + 1)
-          sa_data_left[i+1] <= input_reg[output_row_idx[i]+output_row_offset[i]][output_col_idx[i]+output_col_offset[i]];
+          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
         for (i = 0; i < conv1_num; i = i + 1) 
-          output_reg[i][output_store_row_idx[i]][output_store_col_idx[i]] <= sa_data_down[i];
+        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
       end
-      else if ((conv_start_cnt > output_size) && (conv_start_cnt <= (output_size + conv1_rc))) begin // 145-153
+      else if ((cal_conv1_cnt > conv1_output_size) && (cal_conv1_cnt <= (conv1_output_size + conv1_rc))) begin // 145-153
         for (i = 0; i < conv1_rc; i = i + 1) begin
-          if (i >= (conv_start_cnt - output_size))
-            sa_data_left[i+1] <= input_reg[output_row_idx[i]+output_row_offset[i]][output_col_idx[i]+output_col_offset[i]];
+          if (i >= (cal_conv1_cnt - conv1_output_size))
+            sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                       input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
+                                       input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+                                       input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
           else
             sa_data_left[i+1] <= '0;
         end
         for (i = 0; i < conv1_num; i = i + 1) 
-          output_reg[i][output_store_row_idx[i]][output_store_col_idx[i]] <= sa_data_down[i];
-        if (conv_start_cnt == (output_size + conv1_rc))
+        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
+        if (cal_conv1_cnt == (conv1_output_size + conv1_rc))
           sa_en_left <= '0;
       end
-      else if ((conv_start_cnt > (output_size + conv1_rc)) && (conv_start_cnt <= (output_size + conv1_rc + SA_COLS))) begin // 154-158
+      else if ((cal_conv1_cnt > (conv1_output_size + conv1_rc)) && (cal_conv1_cnt <= (conv1_output_size + conv1_rc + SA_COLS))) begin // 154-158
         for (i = 0; i < conv1_num; i = i + 1) begin
-          if (i >= (conv_start_cnt - (output_size + conv1_rc + 1)))
-            output_reg[i][output_store_row_idx[i]][output_store_col_idx[i]] <= sa_data_down[i];
+          if (i >= (cal_conv1_cnt - (conv1_output_size + conv1_rc + 1)))
+          conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
         end
       end
     end
@@ -908,16 +945,20 @@ module e203_subsys_nice_core (
 
   // Determine individual enable signals for each operation
   wire load_conv1_maddr_ena = (state_is_idle & custom3_load_conv1 & nice_icb_cmd_hsked) | (state_is_load_conv1 & nice_icb_cmd_hsked);
+  wire load_conv2_maddr_ena = (state_is_idle & custom3_load_conv2 & nice_icb_cmd_hsked) | (state_is_load_conv2 & nice_icb_cmd_hsked);
+  wire load_fc1_maddr_ena   = (state_is_idle & custom3_load_fc1   & nice_icb_cmd_hsked) | (state_is_load_fc1   & nice_icb_cmd_hsked);
+  wire load_fc2_maddr_ena   = (state_is_idle & custom3_load_fc2   & nice_icb_cmd_hsked) | (state_is_load_fc2   & nice_icb_cmd_hsked);
   wire load_input_maddr_ena = (state_is_idle & custom3_load_input & nice_icb_cmd_hsked) | (state_is_load_input & nice_icb_cmd_hsked);
-  wire conv_start_maddr_ena = (state_is_start_conv & conv_start_cmd_store);
+  //wire conv_start_maddr_ena = (state_is_start_conv & conv_start_cmd_store);
 
   // Combine the enable signals for the memory address update
-  wire maddr_ena = load_conv1_maddr_ena | load_input_maddr_ena | conv_start_maddr_ena;
+  wire maddr_ena = load_conv1_maddr_ena | load_conv2_maddr_ena | load_fc1_maddr_ena   | 
+                   load_fc2_maddr_ena   | load_input_maddr_ena;
 
   // When in IDLE state, use the base address from nice_req_rs1; otherwise, use the current accumulator value.
-  wire maddr_ena_idle = (maddr_ena & state_is_idle) | conv_start_cmd_store_first;
-  wire [`E203_XLEN-1:0] maddr_acc_op1 = maddr_ena_idle ? 
-                                        (conv_start_cmd_store_first ? start_conv_rs1_reg : nice_req_rs1) : 
+  wire maddr_ena_idle = (maddr_ena & state_is_idle); // | conv_start_cmd_store_first;
+  wire [`E203_XLEN-1:0] maddr_acc_op1 = maddr_ena_idle ? nice_req_rs1 : 
+                                        //(conv_start_cmd_store_first ? start_conv_rs1_reg : nice_req_rs1) : 
                                         maddr_acc_r;
 
   // The increment value is fixed (4 bytes)
@@ -967,7 +1008,8 @@ module e203_subsys_nice_core (
 
   // The NICE core provides a valid response if any of the three operations (rowsum, sbuf, lbuf)
   // signals a valid result.
-  assign nice_rsp_valid = nice_rsp_valid_load_conv1 | nice_rsp_valid_load_input | nice_rsp_valid_start_conv;
+  assign nice_rsp_valid = nice_rsp_valid_load_conv1 | nice_rsp_valid_load_conv2 | nice_rsp_valid_load_fc1   | 
+                          nice_rsp_valid_load_fc2   | nice_rsp_valid_load_input;
 
   // When in the ROWSUM state, the response data is the accumulated row sum;
   // in other states, it is typically zero or unused here.
@@ -989,29 +1031,32 @@ module e203_subsys_nice_core (
   assign nice_icb_cmd_valid =
          (state_is_idle & nice_req_valid & custom_mem_op)
          | nice_icb_cmd_valid_load_conv1
-         | nice_icb_cmd_valid_load_input
-         | nice_icb_cmd_valid_start_conv;
+         | nice_icb_cmd_valid_load_conv2
+         | nice_icb_cmd_valid_load_fc1
+         | nice_icb_cmd_valid_load_fc2
+         | nice_icb_cmd_valid_load_input;
 
   // Select the memory address. If in IDLE and about to start a memory operation,
   // use the base address from nice_req_rs1; otherwise, use the accumulated address.
   assign nice_icb_cmd_addr = (state_is_idle & custom_mem_op) ? nice_req_rs1 : 
-                             (conv_start_cmd_store_first) ? start_conv_rs1_reg :
+                             //(conv_start_cmd_store_first) ? start_conv_rs1_reg :
                              maddr_acc_r;
 
   // Determine whether the operation is a read or write
   assign nice_icb_cmd_read = (state_is_idle & custom_mem_op)
-         ? (custom3_load_conv1 | custom3_load_input)
-         : ((conv_start_maddr_ena) ? 1'b0 : 1'b1);
+         ? (custom3_load_conv1 | custom3_load_conv2 | custom3_load_fc1 | custom3_load_fc2 | custom3_load_input) : 1'b1;
+        // : ((conv_start_maddr_ena) ? 1'b0 : 1'b1);
 
   // Select the write data when in SBUF state or about to start SBUF from IDLE.
-  assign nice_icb_cmd_wdata = conv_start_maddr_ena ? output_reg[output_cmd_num_idx][output_cmd_row_idx][output_cmd_col_idx] :
+  assign nice_icb_cmd_wdata = //conv_start_maddr_ena ? output_reg[output_cmd_num_idx][output_cmd_row_idx][output_cmd_col_idx] :
                               {`E203_XLEN{1'b0}};
 
   // The transaction size is fixed at word (2'b10).
   assign nice_icb_cmd_size = 2'b10;
 
   // Assert 'nice_mem_holdup' when in any multi-cycle memory state
-  assign nice_mem_holdup = state_is_load_conv1 | state_is_load_input | state_is_start_conv;
+  assign nice_mem_holdup = state_is_load_conv1 | state_is_load_conv2 | state_is_load_fc1   |
+                           state_is_load_fc2   | state_is_load_input;
 
 
   ////////////////////////////////////////////////////////////
