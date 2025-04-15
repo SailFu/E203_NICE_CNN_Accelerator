@@ -4,7 +4,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 
-import copy
+from torch.ao.quantization import QuantStub, DeQuantStub
+from torch.ao.quantization import prepare, convert
+from torch.ao.quantization import get_default_qconfig  # 量化配置
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
@@ -43,7 +46,7 @@ model = SimpleCNN().to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-num_epochs = 100
+num_epochs = 50
 
 model.train()
 
@@ -95,9 +98,6 @@ def evaluate_model(model, data_loader, device):
 accuracy_fp32 = evaluate_model(model, test_loader, device)
 print(f"FP32 Model Test Accuracy: {accuracy_fp32:.2f}%")
 
-from torch.ao.quantization import QuantStub, DeQuantStub
-from torch.ao.quantization import prepare, convert
-from torch.ao.quantization import get_default_qconfig  # 量化配置
 
 class QuantizableSimpleCNN(nn.Module):
     def __init__(self):
@@ -135,12 +135,11 @@ quant_model.qconfig = get_default_qconfig('fbgemm')
 # 3) prepare: 插入 Observer，准备收集激活分布信息
 prepare(quant_model, inplace=True)
 
-#  -- Calibration (这里示例只跑了几批数据，也可以全量跑 train_loader 或者部分即可)
-#     注意：如果数据集很大，通常只需要部分数据来校准即可
+#  Calibration 
 with torch.no_grad():
     for i, (images, labels) in enumerate(train_loader):
         quant_model(images)  # 仅需前向传播，让 Observer 记录统计信息
-        if i >= 100:           # 示例：使用 5 个 batch 做校准
+        if i >= 100:
             break
 
 # 4) convert: 让 PyTorch 替换相应算子为量化版本
@@ -153,7 +152,7 @@ with torch.no_grad():
     correct = 0
     total = 0
     for images, labels in test_loader:
-        # 模型和权重量化后一般在 CPU 上推理
+        # 模型和权重量化后在 CPU 上推理
         outputs = quant_model(images)  
         _, predicted = torch.max(outputs, 1)
         total += labels.size(0)
@@ -168,7 +167,6 @@ torch.save(model.state_dict(), "./python/cnn_fp32_weights.pth")
 torch.save(quant_model.state_dict(), "./python/cnn_int8_weights.pth")
 
 # 2) 直接保存整个模型 (PyTorch 原生对象)
-#    量化模型如果要支持跨平台部署，通常还需要转为 TorchScript 等。
 torch.save(model, "./python/cnn_fp32_full.pth")
 # torch.save(quant_model, "./python/model_int8_full.pth")
 scripted_model = torch.jit.script(quant_model)
