@@ -2,9 +2,12 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "hbird_sdk_soc.h"
 
 #include "insn.h"
+
+void conv_comp();
 
 int main(void)
 {
@@ -12,6 +15,19 @@ int main(void)
     printf("****** begin to test the NICE accelerator *******\n");
     printf("*************************************************\n");
 
+    //conv_comp();
+    read();
+
+    printf("\n**************************************************\n");
+    printf("******** end of test the NICE accelerator ********\n");
+    printf("**************************************************\n\n");
+
+    return 0;
+}
+
+
+void conv_comp()
+{
     unsigned int begin_instret, end_instret, instret_normal, instret_nice;
     unsigned int begin_cycle,   end_cycle,   cycle_normal,   cycle_nice;
 
@@ -99,10 +115,6 @@ int main(void)
     //         printf("\n");
     //     }
     // }
-
-    printf("\n**************************************************\n");
-    printf("******** end of test the NICE accelerator ********\n");
-    printf("**************************************************\n\n");
-
-    return 0;
 }
+
+

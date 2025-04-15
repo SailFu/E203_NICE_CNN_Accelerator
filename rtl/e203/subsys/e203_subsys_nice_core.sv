@@ -45,6 +45,9 @@ module e203_subsys_nice_core (
 
   );
 
+  parameter int L_WIDTH = 32;
+  parameter int S_WIDTH = 8;
+
   // here we only use custom3:
   // CUSTOM0 = 7'h0b, R type
   // CUSTOM1 = 7'h2b, R tpye
@@ -90,30 +93,41 @@ module e203_subsys_nice_core (
   ////////////////////////////////////////////////////////////
   wire custom3            = (opcode == 7'b1111011);
   wire custom3_load_conv1 = custom3 && (func3 == 3'b010) && (func7 == 7'b0001011);
-  wire custom3_load_input = custom3 && (func3 == 3'b010) && (func7 == 7'b0001100);
-  wire custom3_start      = custom3 && (func3 == 3'b010) && (func7 == 7'b0001101);
+  wire custom3_load_conv2 = custom3 && (func3 == 3'b010) && (func7 == 7'b0001100);
+  wire custom3_load_fc1   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001101);
+  wire custom3_load_fc2   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001110);
+  wire custom3_load_input = custom3 && (func3 == 3'b010) && (func7 == 7'b0001111);
+  wire custom3_start      = custom3 && (func3 == 3'b010) && (func7 == 7'b0010000);
 
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
   ////////////////////////////////////////////////////////////
-  wire custom_multi_cyc_op = custom3_load_conv1 | custom3_load_input | custom3_start;
+  wire custom_multi_cyc_op = custom3_load_conv1 | custom3_load_conv2 | custom3_load_fc1 | 
+                             custom3_load_fc2   | custom3_load_input | custom3_start ;
   // need access memory
-  wire custom_mem_op       = custom3_load_conv1 | custom3_load_input;
+  wire custom_mem_op       = custom3_load_conv1 | custom3_load_conv2 | custom3_load_fc1 | 
+                             custom3_load_fc2   | custom3_load_input;
 
   ////////////////////////////////////////////////////////////
   // NICE FSM
   ////////////////////////////////////////////////////////////
   localparam IDLE       = 4'd0;
   localparam LOAD_CONV1 = 4'd1;
-  localparam LOAD_INPUT = 4'd2;
-  localparam MOVE_CONV1 = 4'd3;
-  localparam START_CONV = 4'd4;
+  localparam LOAD_CONV2 = 4'd2;
+  localparam LOAD_FC1   = 4'd3;
+  localparam LOAD_FC2   = 4'd4;
+  localparam LOAD_INPUT = 4'd5;
+  localparam MOVE_CONV1 = 4'd6;
+  localparam START_CONV = 4'd7;
 
   // FSM state register
   integer state;
 
   wire state_is_idle       = (state == IDLE);
   wire state_is_load_conv1 = (state == LOAD_CONV1);
+  wire state_is_load_conv2 = (state == LOAD_CONV2);
+  wire state_is_load_fc1   = (state == LOAD_FC1);
+  wire state_is_load_fc2   = (state == LOAD_FC2);
   wire state_is_load_input = (state == LOAD_INPUT);
   wire state_is_move_conv1 = (state == MOVE_CONV1);
   wire state_is_start_conv = (state == START_CONV);
@@ -125,6 +139,9 @@ module e203_subsys_nice_core (
 
   // finish signals
   wire load_conv1_done;
+  wire load_conv2_done;
+  wire load_fc1_done;
+  wire load_fc2_done;
   wire load_input_done;
   wire move_conv1_done;
   wire start_conv_done;
@@ -139,12 +156,16 @@ module e203_subsys_nice_core (
       case (state)
         // In IDLE, if a valid request occurs and the instruction is one of the supported custom3 ops,
         // transition to the corresponding state.
-        IDLE:
-        begin
-          if (nice_req_hsked && custom_multi_cyc_op)
-          begin
+        IDLE: begin
+          if (nice_req_hsked && custom_multi_cyc_op) begin
             if (custom3_load_conv1)
               state <= LOAD_CONV1;
+            else if (custom3_load_conv2)
+              state <= LOAD_CONV2;
+            else if (custom3_load_fc1)
+              state <= LOAD_FC1;
+            else if (custom3_load_fc2)
+              state <= LOAD_FC2;
             else if (custom3_load_input)
               state <= LOAD_INPUT;
             else if (custom3_start)
@@ -152,38 +173,54 @@ module e203_subsys_nice_core (
             else
               state <= IDLE;
           end
-          else
-          begin
+          else begin
             state <= IDLE;
           end
         end
         
-        LOAD_CONV1:
-        begin
+        LOAD_CONV1: begin
           if (load_conv1_done)
             state <= IDLE;
           else
             state <= LOAD_CONV1;
         end
 
-        LOAD_INPUT:
-        begin
+        LOAD_CONV2: begin
+          if (load_conv2_done)
+            state <= IDLE;
+          else
+            state <= LOAD_CONV2;
+        end
+
+        LOAD_FC1: begin
+          if (load_fc1_done)
+            state <= IDLE;
+          else
+            state <= LOAD_FC1;
+        end
+
+        LOAD_FC2: begin
+          if (load_fc2_done)
+            state <= IDLE;
+          else
+            state <= LOAD_FC2;
+        end
+
+        LOAD_INPUT: begin
           if (load_input_done)
             state <= IDLE;
           else
             state <= LOAD_INPUT;
         end
 
-        MOVE_CONV1:
-        begin
+        MOVE_CONV1: begin
           if (move_conv1_done)
             state <= START_CONV;
           else
             state <= MOVE_CONV1;
         end
 
-        START_CONV:
-        begin
+        START_CONV: begin
           if (start_conv_done)
             state <= IDLE;
           else
@@ -241,13 +278,13 @@ module e203_subsys_nice_core (
   // conv1 buffer index accumulation
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      conv1_num_idx <= 0;
-      conv1_rc_idx  <= 0;
+      conv1_num_idx <= '0;
+      conv1_rc_idx  <= '0;
     end
     else if (load_conv1_icb_rsp_hs) begin
       if (conv1_rc_idx == conv1_rc - 1) begin
         conv1_rc_idx <= 0;
-        if (conv1_num_idx == conv1_num_idx - 1) begin
+        if (conv1_num_idx == conv1_num - 1) begin
           conv1_num_idx <= 0;
         end
         else begin
@@ -262,20 +299,239 @@ module e203_subsys_nice_core (
 
 
   // conv1 buffer
-  reg signed [`E203_XLEN-1:0] conv1_reg [conv1_num][conv1_rc];
+  reg signed [S_WIDTH-1:0] conv1_reg [conv1_num][conv1_rc];
 
   // conv1 buffer data storage
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      conv1_reg[i][j] <= '{default: '0};
+      conv1_reg <= '{default: '0};
     end 
     else if (load_conv1_cnt_incr) begin
-      conv1_reg[conv1_num_idx][conv1_rc_idx] <= $signed(nice_icb_rsp_rdata);
+      conv1_reg[conv1_num_idx][conv1_rc_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
     end
   end
 
 
-  //////////// 2. custom3_load_input
+//////////// 2. custom3_load_conv2
+  localparam conv2_num   = 5;
+  localparam conv2_cha   = 5;
+  localparam conv2_width = 3;
+  localparam conv2_rc    = conv2_width * conv2_width;
+  localparam conv2_size  = conv2_num * conv2_rc * conv2_cha;
+
+  integer load_conv2_cnt;
+
+  wire load_conv2_cnt_done    = (load_conv2_cnt == conv2_size);
+  wire load_conv2_icb_rsp_hs  = state_is_load_conv2   & nice_icb_rsp_hsked;
+  wire load_conv2_cnt_incr    = load_conv2_icb_rsp_hs & ~load_conv2_cnt_done;
+  assign load_conv2_done      = load_conv2_icb_rsp_hs & load_conv2_cnt_done;
+
+  // load_conv2_cnt accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      load_conv2_cnt <= 0;
+    else 
+    if (load_conv2_done)
+      load_conv2_cnt <= 0;
+    else if (load_conv2_cnt_incr)
+      load_conv2_cnt <= load_conv2_cnt + 1;
+    else
+      load_conv2_cnt <= load_conv2_cnt;
+  end
+
+  // valid signals
+  wire nice_rsp_valid_load_conv2     = state_is_load_conv2 & load_conv2_cnt_done & nice_icb_rsp_valid;
+  wire nice_icb_cmd_valid_load_conv2 = state_is_load_conv2 & (load_conv2_cnt < conv2_size);
+
+
+  // conv2 buffer index
+  reg [$clog2(conv2_num)-1:0]  conv2_num_idx;
+  reg [$clog2(conv2_cha)-1:0]  conv2_cha_idx;
+  reg [$clog2(conv2_rc) -1:0]  conv2_rc_idx;
+
+  // conv2 buffer index accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      conv2_num_idx <= '0;
+      conv2_cha_idx <= '0;
+      conv2_rc_idx  <= '0;
+    end
+    else if (load_conv1_icb_rsp_hs) begin
+      if (conv2_rc_idx == conv2_rc - 1) begin
+        conv2_rc_idx <= 0;
+        if (conv2_cha_idx == conv2_cha - 1) begin
+          conv2_cha_idx <= 0;
+          if (conv2_num_idx == conv2_num - 1)
+            conv2_num_idx <= 0;
+          else 
+            conv2_num_idx <= conv2_num_idx + 1;
+        end
+        else
+          conv2_cha_idx <= conv2_cha_idx + 1;
+      end 
+      else
+        conv2_rc_idx <= conv2_rc_idx + 1;
+    end
+  end
+
+
+  // conv2 buffer
+  reg signed [S_WIDTH-1:0] conv2_reg [conv2_num][conv2_cha][conv2_rc];
+
+  // conv2 buffer data storage
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      conv2_reg <= '{default: '0};
+    end 
+    else if (load_conv2_cnt_incr) begin
+      conv2_reg[conv2_num_idx][conv2_cha_idx][conv2_rc_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+    end
+  end
+
+
+  //////////// 3. custom3_load_fc1
+  localparam fc1_out_width  = 10;
+  localparam fc1_in_width   = 20;
+  localparam fc1_size       = fc1_out_width * fc1_in_width;
+
+  integer load_fc1_cnt;
+
+  wire load_fc1_cnt_done    = (load_fc1_cnt == fc1_size);
+  wire load_fc1_icb_rsp_hs  = state_is_load_fc1   & nice_icb_rsp_hsked;
+  wire load_fc1_cnt_incr    = load_fc1_icb_rsp_hs & ~load_fc1_cnt_done;
+  assign load_fc1_done      = load_fc1_icb_rsp_hs & load_fc1_cnt_done;
+
+  // load_fc1_cnt accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      load_fc1_cnt <= 0;
+    else 
+    if (load_fc1_cnt_done)
+      load_fc1_cnt <= 0;
+    else if (load_fc1_cnt_incr)
+      load_fc1_cnt <= load_fc1_cnt + 1;
+    else
+      load_fc1_cnt <= load_fc1_cnt;
+  end
+
+  // valid signals
+  wire nice_rsp_valid_load_fc1     = state_is_load_fc1 & load_fc1_cnt_done & nice_icb_rsp_valid;
+  wire nice_icb_cmd_valid_load_fc1 = state_is_load_fc1 & (load_fc1_cnt < fc1_size);
+
+
+  // fc1 buffer index
+  reg [$clog2(fc1_out_width)-1:0]  fc1_out_idx;
+  reg [$clog2(fc1_in_width) -1:0]  fc1_in_idx;
+
+  // fc1 buffer index accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      fc1_out_idx <= '0;
+      fc1_in_idx  <= '0;
+    end
+    else if (load_fc1_icb_rsp_hs) begin
+      if (fc1_in_idx == fc1_in_width - 1) begin
+        fc1_in_idx <= 0;
+        if (fc1_out_idx == fc1_out_width - 1) begin
+          fc1_out_idx <= 0;
+        end
+        else begin
+          fc1_out_idx <= fc1_out_idx + 1;
+        end
+      end 
+      else begin
+        fc1_in_idx <= fc1_in_idx + 1;
+      end
+    end
+  end
+
+
+  // fc1 buffer
+  reg signed [S_WIDTH-1:0] fc1_reg [fc1_out_width][fc1_in_width];
+
+  // fc1 buffer data storage
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      fc1_reg <= '{default: '0};
+    end 
+    else if (load_fc1_cnt_incr) begin
+      fc1_reg[fc1_out_idx][fc1_in_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+    end
+  end
+
+
+  //////////// 4. custom3_load_fc2
+  localparam fc2_out_width  = 10;
+  localparam fc2_in_width   = 10;
+  localparam fc2_size       = fc2_out_width * fc2_in_width;
+
+  integer load_fc2_cnt;
+
+  wire load_fc2_cnt_done    = (load_fc2_cnt == fc2_size);
+  wire load_fc2_icb_rsp_hs  = state_is_load_fc2   & nice_icb_rsp_hsked;
+  wire load_fc2_cnt_incr    = load_fc2_icb_rsp_hs & ~load_fc2_cnt_done;
+  assign load_fc2_done      = load_fc2_icb_rsp_hs & load_fc2_cnt_done;
+
+  // load_fc2_cnt accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n)
+      load_fc2_cnt <= 0;
+    else 
+    if (load_fc2_cnt_done)
+      load_fc2_cnt <= 0;
+    else if (load_fc1_cnt_incr)
+      load_fc2_cnt <= load_fc2_cnt + 1;
+    else
+      load_fc2_cnt <= load_fc2_cnt;
+  end
+
+  // valid signals
+  wire nice_rsp_valid_load_fc2     = state_is_load_fc2 & load_fc2_cnt_done & nice_icb_rsp_valid;
+  wire nice_icb_cmd_valid_load_fc2 = state_is_load_fc2 & (load_fc2_cnt < fc2_size);
+
+
+  // fc2 buffer index
+  reg [$clog2(fc2_out_width)-1:0]  fc2_out_idx;
+  reg [$clog2(fc2_in_width) -1:0]  fc2_in_idx;
+
+  // fc2 buffer index accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      fc2_out_idx <= '0;
+      fc2_in_idx  <= '0;
+    end
+    else if (load_fc2_icb_rsp_hs) begin
+      if (fc2_in_idx == fc2_in_width - 1) begin
+        fc2_in_idx <= 0;
+        if (fc2_out_idx == fc2_out_width - 1) begin
+          fc2_out_idx <= 0;
+        end
+        else begin
+          fc2_out_idx <= fc2_out_idx + 1;
+        end
+      end 
+      else begin
+        fc2_in_idx <= fc2_in_idx + 1;
+      end
+    end
+  end
+
+
+  // fc2 buffer
+  reg signed [S_WIDTH-1:0] fc2_reg [fc2_out_width][fc2_in_width];
+
+  // fc2 buffer data storage
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+      fc2_reg <= '{default: '0};
+    end 
+    else if (load_fc2_cnt_incr) begin
+      fc2_reg[fc2_out_idx][fc2_in_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+    end
+  end
+
+
+  //////////// 5. custom3_load_input
   localparam input_width  = 14;
   localparam input_size   = input_width * input_width;
 
@@ -332,7 +588,7 @@ module e203_subsys_nice_core (
 
 
   // input buffer
-  reg signed [`E203_XLEN-1:0] input_reg [input_width][input_width];
+  reg signed [S_WIDTH-1:0]  input_reg [input_width][input_width];
 
   // input buffer data storage
   always @(posedge nice_clk or negedge nice_rst_n) begin
@@ -340,7 +596,7 @@ module e203_subsys_nice_core (
       input_reg <= '{default: '0};
     end 
     else if (load_input_cnt_incr) begin
-      input_reg[input_row_idx][input_col_idx] <= $signed(nice_icb_rsp_rdata);
+      input_reg[input_row_idx][input_col_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
     end 
   end
 
@@ -348,20 +604,20 @@ module e203_subsys_nice_core (
   ////////////////////////////////////////////////////////////
   // SYSTOLIC ARRAY 
   ////////////////////////////////////////////////////////////
-  parameter int DATA_WIDTH    = 32;
-  parameter int SA_ROWS       = 10;
-  parameter int SA_COLS       = 5;
+  parameter int SA_ROWS = 10;
+  parameter int SA_COLS = 5;
 
-  logic  [SA_ROWS-1:0]        sa_en_left;
-  logic  [DATA_WIDTH-1:0]     sa_data_left [SA_ROWS];
-  logic  [SA_COLS-1:0]        sa_en_up;
-  logic  [DATA_WIDTH-1:0]     sa_data_up   [SA_COLS];
-  logic  [SA_COLS-1:0]        sa_en_down;
-  logic  [DATA_WIDTH-1:0]     sa_data_down [SA_COLS];
-  logic                       sa_mode      [SA_ROWS][SA_COLS];
+  logic  [SA_ROWS-1:0]     sa_en_left;
+  logic  [S_WIDTH-1:0]     sa_data_left [SA_ROWS];
+  logic  [SA_COLS-1:0]     sa_en_up;
+  logic  [L_WIDTH-1:0]     sa_data_up   [SA_COLS];
+  logic  [SA_COLS-1:0]     sa_en_down;
+  logic  [L_WIDTH-1:0]     sa_data_down [SA_COLS];
+  logic                    sa_mode      [SA_ROWS][SA_COLS];
 
   systolic_array_10_5 #(
-    .DATA_WIDTH(DATA_WIDTH),
+    .L_WIDTH(L_WIDTH),
+    .S_WIDTH(S_WIDTH),
     .ROWS(SA_ROWS),
     .COLS(SA_COLS)
   ) u_systolic_array_10_5 (
@@ -380,7 +636,7 @@ module e203_subsys_nice_core (
     .mode      (sa_mode)
   );
 
-  //////////// 3. move_conv1
+  //////////// 6. move_conv1
   integer move_conv1_cnt;
 
   wire move_conv1_cnt_done    = (move_conv1_cnt == SA_ROWS);
@@ -444,7 +700,7 @@ module e203_subsys_nice_core (
   end
 
 
-  //////////// 4. conv_start
+  //////////// 7. conv_start
   localparam output_width = input_width - conv1_width + 1;
   localparam output_size  = output_width * output_width;
   localparam conv_start_cycles = output_size * conv1_num + SA_ROWS + 2;
@@ -572,7 +828,7 @@ module e203_subsys_nice_core (
   localparam int output_row_offset[conv1_rc] = '{0, 0, 0, 1, 1, 1, 2, 2, 2};
   localparam int output_col_offset[conv1_rc] = '{0, 1, 2, 0, 1, 2, 0, 1, 2};
 
-  reg signed [`E203_XLEN-1:0]  output_reg[conv1_num][output_width][output_width];
+  reg signed [L_WIDTH-1:0]  output_reg[conv1_num][output_width][output_width];
 
   // move input data to systolic array, and store output data
   always @(posedge nice_clk or negedge nice_rst_n) begin

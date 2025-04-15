@@ -8,7 +8,8 @@
 // ====================================================================
 
 module systolic_array_10_5 #(
-    parameter int DATA_WIDTH = 32,
+    parameter int L_WIDTH    = 32,
+    parameter int S_WIDTH    = 8,
     parameter int ROWS       = 10,
     parameter int COLS       = 5
 )(
@@ -17,13 +18,13 @@ module systolic_array_10_5 #(
     input  logic                         rst_n,
 
     input  logic  [ROWS-1:0]             en_left,
-    input  logic  [DATA_WIDTH-1:0]       data_left [ROWS],
+    input  logic  [S_WIDTH-1:0]          data_left [ROWS],
 
     input  logic  [COLS-1:0]             en_up,
-    input  logic  [DATA_WIDTH-1:0]       data_up   [COLS],
+    input  logic  [L_WIDTH-1:0]          data_up   [COLS],
 
     output logic  [COLS-1:0]             en_down,
-    output logic  [DATA_WIDTH-1:0]       data_down [COLS],
+    output logic  [L_WIDTH-1:0]          data_down [COLS],
 
     input  logic                         mode      [ROWS][COLS]
 );
@@ -38,11 +39,11 @@ module systolic_array_10_5 #(
 
     // Vertical connections: dimension is [0..ROWS] in row direction, [0..COLS-1] in column
     logic [0:ROWS][COLS-1:0]                 en_vert;
-    logic [0:ROWS][COLS-1:0][DATA_WIDTH-1:0] data_vert;
+    logic [0:ROWS][COLS-1:0][L_WIDTH-1:0]    data_vert;
 
     // Horizontal connections: dimension is [0..ROWS-1] in row, [0..COLS] in column
     logic [ROWS-1:0][0:COLS]                 en_horz;
-    logic [ROWS-1:0][0:COLS][DATA_WIDTH-1:0] data_horz;
+    logic [ROWS-1:0][0:COLS][S_WIDTH-1:0]    data_horz;
 
     // --------------------------------------------------------------------------------
     // Connect the left boundary with en_left/data_left.
@@ -64,7 +65,7 @@ module systolic_array_10_5 #(
     // Connect the bottom boundary
     // --------------------------------------------------------------------------------
     for (genvar j = 0; j < COLS; j++) begin : DOWN_CONNECT
-        assign en_down[j]    = en_vert [ROWS][j];
+        assign en_down[j]    = en_vert[ROWS][j];
         assign data_down[j]  = data_vert[ROWS][j];
     end
 
@@ -76,7 +77,8 @@ module systolic_array_10_5 #(
         for (genvar j = 0; j < COLS; j++) begin : COL_GEN
             if (j < COLS-1) begin
                 PE #(
-                    .DATA_WIDTH(DATA_WIDTH)
+                    .L_WIDTH(L_WIDTH),
+                    .S_WIDTH(S_WIDTH)
                 ) pe_inst (
                     .PE_clk       (clk),
                     .PE_rst_n     (rst_n),
@@ -95,7 +97,8 @@ module systolic_array_10_5 #(
             end
             else begin
                 PE_r #(
-                    .DATA_WIDTH(DATA_WIDTH)
+                    .L_WIDTH(L_WIDTH),
+                    .S_WIDTH(S_WIDTH)
                 ) pe_r_inst (
                     .PE_clk       (clk),
                     .PE_rst_n     (rst_n),
