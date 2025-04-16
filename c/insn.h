@@ -31,74 +31,6 @@
 //     .insn r opcode, func3, func7, rd, rs1, rs2    
 ////////////////////////////////////////////////////////////
 
-// custom lbuf 
-__STATIC_FORCEINLINE void custom_lbuf(int addr)
-{
-    int zero = 0;
-    asm volatile (
-       ".insn r 0x7b, 2, 1, x0, %1, x0"
-           :"=r"(zero)
-           :"r"(addr)
-     );
-}
-
-// custom sbuf 
-__STATIC_FORCEINLINE void custom_sbuf(int addr)
-{
-    int zero = 0;
-    asm volatile (
-       ".insn r 0x7b, 2, 2, x0, %1, x0"
-           :"=r"(zero)
-           :"r"(addr)
-     );
-}
-
-// custom rowsum 
-__STATIC_FORCEINLINE int custom_rowsum(int addr)
-{
-    int rowsum;
-    asm volatile (
-       ".insn r 0x7b, 6, 6, %0, %1, x0"
-             :"=r"(rowsum)
-             :"r"(addr)
-     );
-    
-    return rowsum; 
-}
-
-// custom mul_loada
-__STATIC_FORCEINLINE void custom_mul_loada(uintptr_t addr)
-{
-    int zero = 0;
-    asm volatile (
-        ".insn r 0x7b, 2, 8, x0, %1, x0"
-        : "=r"(zero)
-        : "r"(addr)
-    );
-}
-
-// custom mul_loadb
-__STATIC_FORCEINLINE void custom_mul_loadb(uintptr_t addr)
-{
-    int zero = 0;
-    asm volatile (
-        ".insn r 0x7b, 2, 9, x0, %1, x0"
-        : "=r"(zero)
-        : "r"(addr)
-    );
-}
-
-// custom mul_cals
-__STATIC_FORCEINLINE void custom_mul_cals(uintptr_t st_addr)
-{
-    int zero = 0;
-    asm volatile (
-        ".insn r 0x7b, 2, 10, x0, %1, x0"
-        : "=r"(zero)
-        : "r"(st_addr)
-    );
-}
-
 
 __STATIC_FORCEINLINE void custom_load_conv1(uintptr_t addr)
 {
@@ -131,19 +63,9 @@ __STATIC_FORCEINLINE void custom_start(uintptr_t addr)
 }
 
 
-// normal test case without NICE accelerator.
-int normal_case(unsigned int array[ROW_LEN][COL_LEN]);
-
-// teat case using NICE accelerator.
-int nice_case(unsigned int array[ROW_LEN][COL_LEN]);
-
-
-void normal_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE], int output[NUM_KERNELS][OUT_ROWS][OUT_COLS]);
-
 void nice_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE], int output[NUM_KERNELS][OUT_ROWS][OUT_COLS]);
 
-
-void nice_mul(int matrix_A[4][4], int matrix_B[4][3], int matrix_C[4][3]);
+int normal_cnn(int8_t input[28][28]);
 
 
 #endif

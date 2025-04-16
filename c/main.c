@@ -6,6 +6,7 @@
 #include "hbird_sdk_soc.h"
 
 #include "insn.h"
+#include "data.h"
 
 void conv_comp();
 
@@ -16,7 +17,7 @@ int main(void)
     printf("*************************************************\n");
 
     //conv_comp();
-    read();
+    normal_cnn(mnist_imgs_int8);
 
     printf("\n**************************************************\n");
     printf("******** end of test the NICE accelerator ********\n");

@@ -847,7 +847,18 @@ module e203_subsys_nice_core (
     end
   endfunction
 
-  reg signed [L_WIDTH-1:0]  conv1_output_reg[conv1_num][conv1_output_width][conv1_output_width];
+  function automatic reg signed [H_WIDTH-1:0] relu (
+    input reg signed [H_WIDTH-1:0] a,
+  );
+    reg signed [H_WIDTH-1:0] tmp;
+    begin
+      tmp = a < 0 ? 0 : a;
+      return tmp;
+    end
+  endfunction
+
+  reg signed [H_WIDTH-1:0]  conv1_output_reg[conv1_num][conv1_output_width][conv1_output_width];
+  localparam int [H_WIDTH-1:0] conv1_output_bias[conv1_num] = '{-17, -13, -4, -5, -6};
 
   // move input data to systolic array, and store output data
   always @(posedge nice_clk or negedge nice_rst_n) begin
@@ -885,7 +896,7 @@ module e203_subsys_nice_core (
                                      input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
                                      input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
         for (i = 0; i < (cal_conv1_cnt - (conv1_rc + 1)); i = i + 1) 
-        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
+        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
       end
       else if ((cal_conv1_cnt > (conv1_rc + 1 + conv1_num)) && (cal_conv1_cnt <= conv1_output_size)) begin // 16-144
         for (i = 0; i < conv1_rc; i = i + 1)
@@ -894,7 +905,7 @@ module e203_subsys_nice_core (
                                      input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
                                      input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
         for (i = 0; i < conv1_num; i = i + 1) 
-        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
+        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
       end
       else if ((cal_conv1_cnt > conv1_output_size) && (cal_conv1_cnt <= (conv1_output_size + conv1_rc))) begin // 145-153
         for (i = 0; i < conv1_rc; i = i + 1) begin
@@ -907,14 +918,14 @@ module e203_subsys_nice_core (
             sa_data_left[i+1] <= '0;
         end
         for (i = 0; i < conv1_num; i = i + 1) 
-        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
+        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
         if (cal_conv1_cnt == (conv1_output_size + conv1_rc))
           sa_en_left <= '0;
       end
       else if ((cal_conv1_cnt > (conv1_output_size + conv1_rc)) && (cal_conv1_cnt <= (conv1_output_size + conv1_rc + SA_COLS))) begin // 154-158
         for (i = 0; i < conv1_num; i = i + 1) begin
           if (i >= (cal_conv1_cnt - (conv1_output_size + conv1_rc + 1)))
-          conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_data_down[i];
+            conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
         end
       end
     end
