@@ -17,7 +17,7 @@ int main(void)
     printf("*************************************************\n");
 
     //conv_comp();
-    normal_cnn(mnist_imgs_int8);
+    normal_cnn(&mnist_imgs_int8[28 * 28]);
 
     printf("\n**************************************************\n");
     printf("******** end of test the NICE accelerator ********\n");

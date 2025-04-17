@@ -23,10 +23,10 @@ for i in range(NUM_IMAGES):
 
     # 转为 numpy, [28,28], [0..1]->[0..255]
     img_np = img.squeeze(0).numpy() * 255.0
-
+    # print(img_np)
     # ========== 做有符号 int8 量化 ==========
     # quant = round(x / scale) + zero_point
-    quant_data = np.round(img_np / SCALE + ZERO_POINT)
+    quant_data = np.round(img_np * SCALE + ZERO_POINT)
     # clamp到[-128..127]
     quant_data = np.clip(quant_data, INT8_MIN, INT8_MAX).astype(np.int8)
 

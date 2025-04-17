@@ -116,11 +116,7 @@ int normal_cnn(int8_t input[28][28])
     printf("conv 1\n");
     volatile int32_t output[5][12][12] = {0};
     for (int n = 0; n < 5; n++)
-    {   
-        printf("conv1 %d\n", n);
         conv1_cal(pool1, conv1[n][0], output[n]);
-    }
-        
 
     // pool 2 + quant
     printf("pool 2\n");
