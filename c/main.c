@@ -17,7 +17,15 @@ int main(void)
     printf("*************************************************\n");
 
     //conv_comp();
-    normal_cnn(&mnist_imgs_int8[28 * 28]);
+    for (int i = 0; i < 10; i++)
+    {
+        int res = normal_cnn(&mnist_imgs_uint8[i*784]);
+        if (mnist_labels[i]  == res)
+            printf("Test %d: Pass\n", i);
+        else
+            printf("Test %d: Fail, expected %d, got %d\n", i, mnist_labels[i], res);
+    }
+    
 
     printf("\n**************************************************\n");
     printf("******** end of test the NICE accelerator ********\n");

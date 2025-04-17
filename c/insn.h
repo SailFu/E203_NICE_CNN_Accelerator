@@ -65,7 +65,7 @@ __STATIC_FORCEINLINE void custom_start(uintptr_t addr)
 
 void nice_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE], int output[NUM_KERNELS][OUT_ROWS][OUT_COLS]);
 
-int normal_cnn(int8_t input[28][28]);
+int normal_cnn(uint8_t input[28][28]);
 
 
 #endif
