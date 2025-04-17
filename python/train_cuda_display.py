@@ -71,6 +71,7 @@ def debug_inference(quant_model, x_fp32):
     
     # [5] conv2 + ReLU + MaxPool
     print_weight_info(quant_model.conv2, "Conv2")
+    print("Bias value:", quant_model.conv2.bias())
     out2 = quant_model.conv2(out1_pool)
     print("\n>>> Conv2 输出:")
     print("  out2 scale:     ", out2.q_scale())
@@ -90,16 +91,18 @@ def debug_inference(quant_model, x_fp32):
 
     # [7] fc1 + ReLU
     print_weight_info(quant_model.fc1, "FC1")
+    print("Bias value:", quant_model.fc1.bias())
     out_fc1 = quant_model.fc1(out3)
     print("\n>>> FC1 输出:")
     print("  out_fc1 scale:     ", out_fc1.q_scale())
-    print("  out_fc1 zero_point:", out_fc1.q_zero_point())
+    print("  out_fc1 zero_point:", out_fc1.q_zero_point())159
     print("  out_fc1 int_repr:", out_fc1.int_repr())
     
     out_fc1_relu = F.relu(out_fc1)
 
     # [8] fc2 (最后输出)
     print_weight_info(quant_model.fc2, "FC2")
+    print("Bias value:", quant_model.fc2.bias())
     out_fc2 = quant_model.fc2(out_fc1_relu)
     print("\n>>> FC2 输出 (Logits):")
     print("  out_fc2 scale:     ", out_fc2.q_scale())
@@ -153,7 +156,7 @@ model = SimpleCNN().to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-num_epochs = 3
+num_epochs = 20
 
 model.train()
 
