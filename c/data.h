@@ -3,22 +3,36 @@
 
 #include <stdint.h>
 
-extern int8_t conv1[5][1][3][3];
-extern int8_t conv1_bias[5];
-extern int8_t conv1_zero_point;
 
-extern int8_t conv2[5][5][3][3];
-extern int8_t conv2_bias[5];
-extern int8_t conv2_zero_point;
+extern int8_t input_zp;
 
-extern int8_t fc1[10][20];
-extern int8_t fc1_bias[10];
-extern int8_t fc1_zero_point;
+extern int8_t conv1_weight[45];
+extern int8_t conv1_weight_zp;
+extern int32_t conv1_bias[5];
+// conv1_scale = 1/510 => to uint8
+extern int8_t conv1_out_zp;
 
-extern int8_t fc2[10][10];
+extern int8_t conv2_weight[225];
+extern int8_t conv2_weight_zp;
+extern int32_t conv2_bias[5];
+// conv2_scale = 1/216 => to uint8
+extern int8_t conv2_out_zp;
+
+extern int8_t fc1_weight[200];
+extern int8_t fc1_weight_zp;
+extern int32_t fc1_bias[10];
+// fc1_scale = 1/206 => to uint8
+extern int8_t fc1_out_zp;
+
+extern int8_t fc2_weight[100]};
+extern int8_t fc2_weight_zp;
+extern int32_t fc2_bias[10];
+// fc2_scale = 1/11 => to uint8
+extern int8_t fc2_out_zp;
 
 
 extern int8_t mnist_labels[10];
 extern int8_t mnist_imgs_int8[7840];
+
 
 #endif
