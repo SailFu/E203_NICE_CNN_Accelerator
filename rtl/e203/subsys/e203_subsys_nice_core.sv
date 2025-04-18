@@ -97,13 +97,12 @@ module e203_subsys_nice_core (
   wire custom3_load_fc1   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001101);
   wire custom3_load_fc2   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001110);
   wire custom3_load_input = custom3 && (func3 == 3'b010) && (func7 == 7'b0001111);
-  wire custom3_start      = custom3 && (func3 == 3'b010) && (func7 == 7'b0010000);
 
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
   ////////////////////////////////////////////////////////////
   wire custom_multi_cyc_op = custom3_load_conv1 | custom3_load_conv2 | custom3_load_fc1 | 
-                             custom3_load_fc2   | custom3_load_input | custom3_start ;
+                             custom3_load_fc2   | custom3_load_input;
   // need access memory
   wire custom_mem_op       = custom3_load_conv1 | custom3_load_conv2 | custom3_load_fc1 | 
                              custom3_load_fc2   | custom3_load_input;
@@ -168,8 +167,6 @@ module e203_subsys_nice_core (
               state <= LOAD_FC2;
             else if (custom3_load_input)
               state <= LOAD_INPUT;
-            else if (custom3_start)
-              state <= MOVE_CONV1;
             else
               state <= IDLE;
           end
@@ -208,7 +205,7 @@ module e203_subsys_nice_core (
 
         LOAD_INPUT: begin
           if (load_input_done)
-            state <= IDLE;
+            state <= MOVE_CONV1;
           else
             state <= LOAD_INPUT;
         end
@@ -234,12 +231,33 @@ module e203_subsys_nice_core (
   end
 
 
+  typedef logic        [7:0]  uint8_t;
+  typedef logic signed [7:0]  int8_t;
+  typedef logic signed [31:0] int32_t;
+  typedef logic signed [8:0]  int9_t;
+
+  localparam uint8_t input_zp = 127;
+
+  localparam uint8_t conv1_weight_zp = 2;
+  localparam int32_t conv1_bias[5] = '{871, -16316, -9617, -21527, -7265};
+  localparam uint8_t conv1_out_zp = 159;
+
+  localparam uint8_t conv2_weight_zp = 31;
+  localparam int32_t conv2_bias[5] = '{-215, 2005, -2292, 4127, 441};
+  localparam uint8_t conv2_out_zp = 118;
+
+  localparam uint8_t fc1_weight_zp = 7;
+  localparam int32_t fc1_bias[10] = '{-318, -434, 1721, -288, -879, 872, -658, -665, 2352, -2272};
+  localparam uint8_t fc1_out_zp = 107;
+
+  localparam uint8_t fc2_weight_zp = 11;
+  localparam int32_t fc2_bias[10] = '{-5, 88, -71, -14, -2, -32, 22, 28, -64, 19};
+
 
   ////////////////////////////////////////////////////////////
   // instr EXU
   ////////////////////////////////////////////////////////////
   //////////// 1. custom3_load_conv1
-  integer i, j, k;
 
   localparam conv1_num   = 5;
   localparam conv1_width = 3;
@@ -299,15 +317,15 @@ module e203_subsys_nice_core (
 
 
   // conv1 buffer
-  reg signed [S_WIDTH-1:0] conv1_reg [conv1_num][conv1_rc];
+  int8_t conv1_weight [conv1_num][conv1_rc];
 
   // conv1 buffer data storage
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      conv1_reg <= '{default: '0};
+      conv1_weight <= '{default: '0};
     end 
     else if (load_conv1_cnt_incr) begin
-      conv1_reg[conv1_num_idx][conv1_rc_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+      conv1_weight[conv1_num_idx][conv1_rc_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
     end
   end
 
@@ -376,15 +394,15 @@ module e203_subsys_nice_core (
 
 
   // conv2 buffer
-  reg signed [S_WIDTH-1:0] conv2_reg [conv2_num][conv2_cha][conv2_rc];
+  int8_t conv2_weight [conv2_num][conv2_cha][conv2_rc];
 
   // conv2 buffer data storage
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      conv2_reg <= '{default: '0};
+      conv2_weight <= '{default: '0};
     end 
     else if (load_conv2_cnt_incr) begin
-      conv2_reg[conv2_num_idx][conv2_cha_idx][conv2_rc_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+      conv2_weight[conv2_num_idx][conv2_cha_idx][conv2_rc_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
     end
   end
 
@@ -447,15 +465,15 @@ module e203_subsys_nice_core (
 
 
   // fc1 buffer
-  reg signed [S_WIDTH-1:0] fc1_reg [fc1_out_width][fc1_in_width];
+  int8_t fc1_weight [fc1_out_width][fc1_in_width];
 
   // fc1 buffer data storage
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      fc1_reg <= '{default: '0};
+      fc1_weight <= '{default: '0};
     end 
     else if (load_fc1_cnt_incr) begin
-      fc1_reg[fc1_out_idx][fc1_in_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+      fc1_weight[fc1_out_idx][fc1_in_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
     end
   end
 
@@ -479,7 +497,7 @@ module e203_subsys_nice_core (
     else 
     if (load_fc2_cnt_done)
       load_fc2_cnt <= 0;
-    else if (load_fc1_cnt_incr)
+    else if (load_fc2_cnt_incr)
       load_fc2_cnt <= load_fc2_cnt + 1;
     else
       load_fc2_cnt <= load_fc2_cnt;
@@ -518,15 +536,15 @@ module e203_subsys_nice_core (
 
 
   // fc2 buffer
-  reg signed [S_WIDTH-1:0] fc2_reg [fc2_out_width][fc2_in_width];
+  int8_t fc2_weight [fc2_out_width][fc2_in_width];
 
   // fc2 buffer data storage
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      fc2_reg <= '{default: '0};
+      fc2_weight <= '{default: '0};
     end 
     else if (load_fc2_cnt_incr) begin
-      fc2_reg[fc2_out_idx][fc2_in_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+      fc2_weight[fc2_out_idx][fc2_in_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
     end
   end
 
@@ -588,7 +606,7 @@ module e203_subsys_nice_core (
 
 
   // input buffer
-  reg signed [S_WIDTH-1:0]  input_reg [input_width][input_width];
+  uint8_t  input_reg [input_width][input_width];
 
   // input buffer data storage
   always @(posedge nice_clk or negedge nice_rst_n) begin
@@ -596,7 +614,7 @@ module e203_subsys_nice_core (
       input_reg <= '{default: '0};
     end 
     else if (load_input_cnt_incr) begin
-      input_reg[input_row_idx][input_col_idx] <= $signed(nice_icb_rsp_rdata[S_WIDTH-1:0]);
+      input_reg[input_row_idx][input_col_idx] <= nice_icb_rsp_rdata[S_WIDTH-1:0];
     end 
   end
 
@@ -607,12 +625,12 @@ module e203_subsys_nice_core (
   parameter int SA_ROWS = 10;
   parameter int SA_COLS = 5;
 
-  logic  [SA_ROWS-1:0]     sa_en_left;
-  logic  [S_WIDTH-1:0]     sa_data_left [SA_ROWS];
-  logic  [SA_COLS-1:0]     sa_en_up;
-  logic  [L_WIDTH-1:0]     sa_data_up   [SA_COLS];
-  logic  [SA_COLS-1:0]     sa_en_down;
-  logic  [L_WIDTH-1:0]     sa_data_down [SA_COLS];
+  logic   [SA_ROWS-1:0]    sa_en_left;
+  int9_t                   sa_data_left [SA_ROWS];
+  logic   [SA_COLS-1:0]    sa_en_up;
+  int9_t                   sa_data_up   [SA_COLS];
+  logic   [SA_COLS-1:0]    sa_en_down;
+  int32_t                  sa_data_down [SA_COLS];
   logic                    sa_mode      [SA_ROWS][SA_COLS];
 
   systolic_array_10_5 #(
@@ -655,6 +673,17 @@ module e203_subsys_nice_core (
     end
   end
 
+  // send weight to SA after sub zero_point
+  int9_t weight_res[SA_COLS-1:0];
+
+  always_comb begin
+    for (int i = 0; i < SA_COLS; i++) begin
+      weight_res[i] = '0; // default
+      if (state_is_move_conv1) begin
+        weight_res[i] = conv1_weight[i][conv1_rc-1-move_conv1_cnt] - $signed(conv1_weight_zp);
+      end
+    end
+  end
 
   // move conv1 kernels to systolic array
   always @(posedge nice_clk or negedge nice_rst_n) begin
@@ -665,33 +694,33 @@ module e203_subsys_nice_core (
     end
     else if (state_is_move_conv1) begin
       if (move_conv1_cnt == 0) begin
-        for (i = 0; i < SA_ROWS; i = i + 1) begin
-          for (j = 0; j < SA_COLS; j = j + 1) begin
+        for (int i = 0; i < SA_ROWS; i = i + 1) begin
+          for (int j = 0; j < SA_COLS; j = j + 1) begin
             sa_mode[i][j] <= 1'b1;
           end
         end
         sa_en_up <= {SA_COLS{1'b1}};
-        for (i = 0; i < SA_COLS; i = i + 1) begin
-          sa_data_up[i] <= conv1_reg[i][conv1_rc-1];
+        for (int i = 0; i < SA_COLS; i = i + 1) begin
+          sa_data_up[i] <= weight_res[i];
         end
       end
       else if ((move_conv1_cnt >= 1) && (move_conv1_cnt <= SA_ROWS-2)) begin
-        for (i = 0; i < SA_COLS; i = i + 1) begin
-          sa_data_up[i] <= conv1_reg[i][conv1_rc-1-move_conv1_cnt];
+        for (int i = 0; i < SA_COLS; i = i + 1) begin
+          sa_data_up[i] <= weight_res[i];
         end
       end
       else if (move_conv1_cnt == SA_ROWS-1) begin
-        for (i = 0; i < SA_COLS; i = i + 1) begin
+        for (int i = 0; i < SA_COLS; i = i + 1) begin
           sa_data_up[i] <= '0;
         end
       end
       else begin
         sa_en_up <= '0;
-        for (i = 0; i < SA_COLS; i = i + 1) begin
+        for (int i = 0; i < SA_COLS; i = i + 1) begin
           sa_data_up[i] <= '0;
         end
-        for (i = 0; i < SA_ROWS; i = i + 1) begin
-          for (j = 0; j < SA_COLS; j = j + 1) begin
+        for (int i = 0; i < SA_ROWS; i = i + 1) begin
+          for (int j = 0; j < SA_COLS; j = j + 1) begin
             sa_mode[i][j] <= 1'b0;
           end
         end
@@ -711,7 +740,7 @@ module e203_subsys_nice_core (
   wire cal_conv1_cnt_incr    = cal_conv1_icb_rsp_hs & ~cal_conv1_cnt_done;
   assign cal_conv1_done      = cal_conv1_icb_rsp_hs & cal_conv1_cnt_done;
 
-  // conv_start_cnt accumulation
+  // cal_conv1_cnt accumulation
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n)
     cal_conv1_cnt <= 0;
@@ -737,38 +766,38 @@ module e203_subsys_nice_core (
   //wire nice_rsp_valid_cal_conv1     = state_is_cal_conv1 & cal_conv1_cnt_done & nice_icb_rsp_valid;
   //wire nice_icb_cmd_valid_cal_conv1 = state_is_cal_conv1 & (cal_conv1_cnt < cal_conv1_cycles) & cal_conv1_cmd_store;
 
-  reg [$clog2(conv1_num)   -1:0]        conv1_output_cmd_num_idx;
-  reg [$clog2(conv1_output_width)-1:0]  conv1_output_cmd_row_idx;
-  reg [$clog2(conv1_output_width)-1:0]  conv1_output_cmd_col_idx;
+  // reg [$clog2(conv1_num)   -1:0]        conv1_output_cmd_num_idx;
+  // reg [$clog2(conv1_output_width)-1:0]  conv1_output_cmd_row_idx;
+  // reg [$clog2(conv1_output_width)-1:0]  conv1_output_cmd_col_idx;
 
-  // output_cmd_idx accumulation
-  always @(posedge nice_clk or negedge nice_rst_n) begin
-    if (!nice_rst_n) begin
-      conv1_output_cmd_num_idx <= '0;
-      conv1_output_cmd_row_idx <= '0;
-      conv1_output_cmd_col_idx <= '0;
-    end
-    else if (cal_conv1_cmd_store) begin // >=11
-      if (conv1_output_cmd_col_idx == conv1_output_width - 1) begin
-        conv1_output_cmd_col_idx <= 0;
-        if (conv1_output_cmd_row_idx == conv1_output_width - 1) begin
-          conv1_output_cmd_row_idx <= 0;
-          if (conv1_output_cmd_num_idx == conv1_num - 1) begin
-            conv1_output_cmd_num_idx <= 0;
-          end
-          else begin
-            conv1_output_cmd_num_idx <= conv1_output_cmd_num_idx + 1;
-          end
-        end
-        else begin
-          conv1_output_cmd_row_idx <= conv1_output_cmd_row_idx + 1;
-        end
-      end 
-      else begin
-        conv1_output_cmd_col_idx <= conv1_output_cmd_col_idx + 1;
-      end
-    end
-  end
+  // // output_cmd_idx accumulation
+  // always @(posedge nice_clk or negedge nice_rst_n) begin
+  //   if (!nice_rst_n) begin
+  //     conv1_output_cmd_num_idx <= '0;
+  //     conv1_output_cmd_row_idx <= '0;
+  //     conv1_output_cmd_col_idx <= '0;
+  //   end
+  //   else if (cal_conv1_cmd_store) begin // >=11
+  //     if (conv1_output_cmd_col_idx == conv1_output_width - 1) begin
+  //       conv1_output_cmd_col_idx <= 0;
+  //       if (conv1_output_cmd_row_idx == conv1_output_width - 1) begin
+  //         conv1_output_cmd_row_idx <= 0;
+  //         if (conv1_output_cmd_num_idx == conv1_num - 1) begin
+  //           conv1_output_cmd_num_idx <= 0;
+  //         end
+  //         else begin
+  //           conv1_output_cmd_num_idx <= conv1_output_cmd_num_idx + 1;
+  //         end
+  //       end
+  //       else begin
+  //         conv1_output_cmd_row_idx <= conv1_output_cmd_row_idx + 1;
+  //       end
+  //     end 
+  //     else begin
+  //       conv1_output_cmd_col_idx <= conv1_output_cmd_col_idx + 1;
+  //     end
+  //   end
+  // end
 
 
   reg [($clog2(conv1_output_width))*2-1:0]  conv1_output_row_idx[conv1_rc];
@@ -781,7 +810,7 @@ module e203_subsys_nice_core (
       conv1_output_col_idx <= '{default: '0};
     end 
     else if (cal_conv1_cnt) begin // >=1
-      for (i = 0; i < conv1_rc; i = i + 1) begin
+      for (int i = 0; i < conv1_rc; i = i + 1) begin
         if (conv1_output_col_idx[i] == conv1_output_width - 1) begin
           conv1_output_col_idx[i] <= 0;
           if (conv1_output_row_idx[i] == conv1_output_width - 1)
@@ -808,7 +837,7 @@ module e203_subsys_nice_core (
       conv1_output_store_col_idx <= '{default: '0};
     end 
     else if (cal_conv1_cnt >= (SA_ROWS + 1)) begin // >=11
-      for (i = 0; i < conv1_num; i = i + 1) begin
+      for (int i = 0; i < conv1_num; i = i + 1) begin
         if (conv1_output_store_col_idx[i] == conv1_output_width - 1) begin
           conv1_output_store_col_idx[i] <= 0;
           if (conv1_output_store_row_idx[i] == conv1_output_width - 1)
@@ -824,41 +853,82 @@ module e203_subsys_nice_core (
     end
   end
 
-
   localparam int conv1_output_row_offset[conv1_rc] = '{0, 0, 0, 2, 2, 2, 4, 4, 4};
   localparam int conv1_output_col_offset[conv1_rc] = '{0, 2, 4, 0, 2, 4, 0, 2, 4};
 
-  function automatic reg signed [L_WIDTH-1:0] max4 (
-    input reg signed [L_WIDTH-1:0] a,
-    input reg signed [L_WIDTH-1:0] b,
-    input reg signed [L_WIDTH-1:0] c,
-    input reg signed [L_WIDTH-1:0] d
-  );
-    reg signed [L_WIDTH-1:0] tmp;
+  // receive conv output from SA and add bias and quant and clamp to uint8
+  int9_t sa_output_res [SA_COLS-1:0];
+
+  always_comb begin
+    for (int i = 0; i < SA_COLS; i++) begin
+      int32_t in;
+      uint8_t res;
+      in  = '0;
+      res = '0;
+      
+      // quant
+      if (state_is_cal_conv1 && (cal_conv1_cnt > (conv1_rc + 1))) begin
+        in = sa_data_down[i] + conv1_bias[i];
+        // scale = 1/510 ≈ (1 + 1/256) / 512
+        // (acc + acc/256) >> 9
+        in = in + (in >>> 8);
+        in = (in >>> 9) + $signed(conv1_out_zp);
+      end
+      
+      // clamp to uint8
+      if      (in < 0)     res = 8'd0;
+      else if (in > 255)   res = 8'd255;
+      else                 res = in[7:0]; // or uint8_t'(in)
+      
+      // relu
+      if (state_is_cal_conv1 && (cal_conv1_cnt > (conv1_rc + 1))) begin
+        if (res < conv1_out_zp)
+          res = conv1_out_zp;
+      end
+
+      sa_output_res[i] = res;
+    end
+  end
+  
+  // pool and sub zero_point for input data
+  function automatic int9_t pool_dequant_cal;
+    input uint8_t a, b, c, d;
+    uint8_t m0, m1, max4;
+    int9_t quant;
     begin
-      tmp = a;
-      if (b > tmp)
-        tmp = b;
-      if (c > tmp)
-        tmp = c;
-      if (d > tmp)
-        tmp = d;
-      return tmp;
+      m0    = (a > b) ? a : b;
+      m1    = (c > d) ? c : d;
+      max4  = (m0 > m1) ? m0 : m1;
+      quant = $signed(max4) - $signed(input_zp);
+      return quant;
     end
   endfunction
 
-  function automatic reg signed [H_WIDTH-1:0] relu (
-    input reg signed [H_WIDTH-1:0] a,
-  );
-    reg signed [H_WIDTH-1:0] tmp;
-    begin
-      tmp = a < 0 ? 0 : a;
-      return tmp;
-    end
-  endfunction
+  // send conv data to SA after pool and sub zero_point
+  int9_t sa_input_res [SA_ROWS-1:0];
 
-  reg signed [H_WIDTH-1:0]  conv1_output_reg[conv1_num][conv1_output_width][conv1_output_width];
-  localparam int [H_WIDTH-1:0] conv1_output_bias[conv1_num] = '{-17, -13, -4, -5, -6};
+  always_comb begin
+    for (int i = 0; i < SA_ROWS; i++) begin
+      sa_input_res[i] = '0;  // default
+      if (state_is_cal_conv1 && (cal_conv1_cnt > 0) && (cal_conv1_cnt <= (conv1_output_size + conv1_rc))) begin
+        sa_input_res[i] = pool_dequant_cal (
+          input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+          input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
+          input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
+          input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]
+        );
+      end
+    end
+  end
+
+  uint8_t conv1_output_reg[conv1_num][conv1_output_width][conv1_output_width];
+
+  // Regesters:
+  // int8_t conv1_weight [conv1_num][conv1_rc];                   5 * 9
+  // int8_t conv2_weight [conv2_num][conv2_cha][conv2_rc];        5 * 5 * 9
+  // int8_t fc1_weight [fc1_out_width][fc1_in_width];             10 * 20
+  // int8_t fc2_weight [fc2_out_width][fc2_in_width];             10 * 10
+  // uint8_t [S_WIDTH-1:0] input_reg [input_width][input_width];  28 * 28
 
   // move input data to systolic array, and store output data
   always @(posedge nice_clk or negedge nice_rst_n) begin
@@ -870,62 +940,44 @@ module e203_subsys_nice_core (
     else if (state_is_cal_conv1 & (cal_conv1_cnt > 0)) begin
       if (cal_conv1_cnt == 1) begin // 1
         sa_en_left <= {SA_ROWS{1'b1}};
-        sa_data_left[1] <= max4 (input_reg[conv1_output_row_idx[0]  ][conv1_output_col_idx[0]  ],
-                                 input_reg[conv1_output_row_idx[0]  ][conv1_output_col_idx[0]+1],
-                                 input_reg[conv1_output_row_idx[0]+1][conv1_output_col_idx[0]  ],
-                                 input_reg[conv1_output_row_idx[0]+1][conv1_output_col_idx[0]+1]);
+        sa_data_left[1] <= sa_input_res[0];
       end 
       else if ((cal_conv1_cnt > 1) && (cal_conv1_cnt <= conv1_rc)) begin // 2-9
-        for (i = 0; i < cal_conv1_cnt; i = i + 1)
-          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
+        for (int i = 0; i < cal_conv1_cnt; i = i + 1)
+          sa_data_left[i+1] <= sa_input_res[i];
       end 
       else if (cal_conv1_cnt == (conv1_rc + 1)) begin // 10
-        for (i = 0; i < conv1_rc; i = i + 1)
-          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
+        for (int i = 0; i < conv1_rc; i = i + 1)
+          sa_data_left[i+1] <= sa_input_res[i];
       end
       else if ((cal_conv1_cnt > (conv1_rc + 1)) && (cal_conv1_cnt <= (conv1_rc + 1 + conv1_num))) begin // 11-15
-        for (i = 0; i < conv1_rc; i = i + 1)
-          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
-        for (i = 0; i < (cal_conv1_cnt - (conv1_rc + 1)); i = i + 1) 
-        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
+        for (int i = 0; i < conv1_rc; i = i + 1)
+          sa_data_left[i+1] <= sa_input_res[i];
+        for (int i = 0; i < (cal_conv1_cnt - (conv1_rc + 1)); i = i + 1) 
+          conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_output_res[i];
       end
       else if ((cal_conv1_cnt > (conv1_rc + 1 + conv1_num)) && (cal_conv1_cnt <= conv1_output_size)) begin // 16-144
-        for (i = 0; i < conv1_rc; i = i + 1)
-          sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                     input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
-        for (i = 0; i < conv1_num; i = i + 1) 
-        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
+        for (int i = 0; i < conv1_rc; i = i + 1)
+          sa_data_left[i+1] <= sa_input_res[i];
+        for (int i = 0; i < conv1_num; i = i + 1) 
+          conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_output_res[i];
       end
       else if ((cal_conv1_cnt > conv1_output_size) && (cal_conv1_cnt <= (conv1_output_size + conv1_rc))) begin // 145-153
-        for (i = 0; i < conv1_rc; i = i + 1) begin
+        for (int i = 0; i < conv1_rc; i = i + 1) begin
           if (i >= (cal_conv1_cnt - conv1_output_size))
-            sa_data_left[i+1] <= max4 (input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                       input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]  ][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1],
-                                       input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]  ],
-                                       input_reg[conv1_output_row_idx[i]+conv1_output_row_offset[i]+1][conv1_output_col_idx[i]+conv1_output_col_offset[i]+1]);
+            sa_data_left[i+1] <= sa_input_res[i];
           else
             sa_data_left[i+1] <= '0;
         end
-        for (i = 0; i < conv1_num; i = i + 1) 
-        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
+        for (int i = 0; i < conv1_num; i = i + 1) 
+        conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_output_res[i];
         if (cal_conv1_cnt == (conv1_output_size + conv1_rc))
           sa_en_left <= '0;
       end
       else if ((cal_conv1_cnt > (conv1_output_size + conv1_rc)) && (cal_conv1_cnt <= (conv1_output_size + conv1_rc + SA_COLS))) begin // 154-158
-        for (i = 0; i < conv1_num; i = i + 1) begin
+        for (int i = 0; i < conv1_num; i = i + 1) begin
           if (i >= (cal_conv1_cnt - (conv1_output_size + conv1_rc + 1)))
-            conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= relu($signed(sa_data_down[i] + conv1_output_bias[i]));
+            conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_output_res[i];
         end
       end
     end
@@ -938,8 +990,8 @@ module e203_subsys_nice_core (
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n)
       start_conv_rs1_reg <= 0;
-    else if (state_is_idle & custom3_start)
-      start_conv_rs1_reg <= nice_req_rs1;
+    else if (state_is_idle & custom3_load_input)
+      start_conv_rs1_reg <= nice_req_rs1; // wrong
   end
 
 

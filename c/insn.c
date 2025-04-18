@@ -202,13 +202,14 @@ int normal_cnn(uint8_t input[28][28])
 }
 
 
-void nice_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE], int output[NUM_KERNELS][OUT_ROWS][OUT_COLS])
+int nice_cnn(uint8_t input[784])
 {
-    custom_load_conv1((uintptr_t)kernels[0][0]);
-
-    custom_load_input((uintptr_t)input[0]);
-
-    custom_start((uintptr_t)output[0][0]);
-    
+    int result;
+    custom_load_conv1((uintptr_t)conv1_weight);
+    custom_load_conv2((uintptr_t)conv2_weight);
+    custom_load_fc1((uintptr_t)fc1_weight);
+    custom_load_fc2((uintptr_t)fc2_weight);
+    custom_load_input((uintptr_t)input);
+    return 0;
 }
 

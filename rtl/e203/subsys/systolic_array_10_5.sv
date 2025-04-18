@@ -4,8 +4,10 @@
 //
 // Description:
 //  The Module to realize a 10 * 5 Systolic Array
+//  Mul width: int9   Add width: int32
 //
 // ====================================================================
+
 
 module systolic_array_10_5 #(
     parameter int L_WIDTH    = 32,
@@ -17,14 +19,14 @@ module systolic_array_10_5 #(
     input  logic                         clk,
     input  logic                         rst_n,
 
-    input  logic  [ROWS-1:0]             en_left,
-    input  logic  [S_WIDTH-1:0]          data_left [ROWS],
+    input  logic        [ROWS-1:0]       en_left,
+    input  logic signed [8:0]            data_left [ROWS],
 
-    input  logic  [COLS-1:0]             en_up,
-    input  logic  [L_WIDTH-1:0]          data_up   [COLS],
+    input  logic        [COLS-1:0]       en_up,
+    input  logic signed [8:0]            data_up   [COLS],
 
-    output logic  [COLS-1:0]             en_down,
-    output logic  [L_WIDTH-1:0]          data_down [COLS],
+    output logic        [COLS-1:0]       en_down,
+    output logic signed [31:0]           data_down [COLS],
 
     input  logic                         mode      [ROWS][COLS]
 );
@@ -38,12 +40,12 @@ module systolic_array_10_5 #(
     // --------------------------------------------------------------------------------
 
     // Vertical connections: dimension is [0..ROWS] in row direction, [0..COLS-1] in column
-    logic [0:ROWS][COLS-1:0]                 en_vert;
-    logic [0:ROWS][COLS-1:0][L_WIDTH-1:0]    data_vert;
+    logic        [0:ROWS][COLS-1:0]                 en_vert;
+    logic signed [0:ROWS][COLS-1:0][L_WIDTH-1:0]    data_vert;
 
     // Horizontal connections: dimension is [0..ROWS-1] in row, [0..COLS] in column
-    logic [ROWS-1:0][0:COLS]                 en_horz;
-    logic [ROWS-1:0][0:COLS][S_WIDTH-1:0]    data_horz;
+    logic        [ROWS-1:0][0:COLS]                 en_horz;
+    logic signed [ROWS-1:0][0:COLS][9-1:0]          data_horz;
 
     // --------------------------------------------------------------------------------
     // Connect the left boundary with en_left/data_left.

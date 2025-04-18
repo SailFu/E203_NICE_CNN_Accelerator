@@ -42,7 +42,7 @@ __STATIC_FORCEINLINE void custom_load_conv1(uintptr_t addr)
     );
 }
 
-__STATIC_FORCEINLINE void custom_load_input(uintptr_t addr)
+__STATIC_FORCEINLINE void custom_load_conv2(uintptr_t addr)
 {
     int zero = 0;
     asm volatile (
@@ -52,7 +52,7 @@ __STATIC_FORCEINLINE void custom_load_input(uintptr_t addr)
     );
 }
 
-__STATIC_FORCEINLINE void custom_start(uintptr_t addr)
+__STATIC_FORCEINLINE void custom_load_fc1(uintptr_t addr)
 {
     int zero = 0;
     asm volatile (
@@ -62,8 +62,28 @@ __STATIC_FORCEINLINE void custom_start(uintptr_t addr)
     );
 }
 
+__STATIC_FORCEINLINE void custom_load_fc2(uintptr_t addr)
+{
+    int zero = 0;
+    asm volatile (
+        ".insn r 0x7b, 2, 14, x0, %1, x0"
+        : "=r"(zero)
+        : "r"(addr)
+    );
+}
 
-void nice_conv(int input[ROWS][COLS], int kernels[NUM_KERNELS][KERNEL_SIZE][KERNEL_SIZE], int output[NUM_KERNELS][OUT_ROWS][OUT_COLS]);
+__STATIC_FORCEINLINE void custom_load_input(uintptr_t addr)
+{
+    int zero = 0;
+    asm volatile (
+        ".insn r 0x7b, 2, 15, x0, %1, x0"
+        : "=r"(zero)
+        : "r"(addr)
+    );
+}
+
+
+int nice_cnn(uint8_t input[784]);
 
 int normal_cnn(uint8_t input[28][28]);
 
