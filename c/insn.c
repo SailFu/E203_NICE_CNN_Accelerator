@@ -14,7 +14,7 @@ void conv1_cal(uint8_t input[14][14], const int8_t kernel[3][3], int32_t output[
             for (int k = 0; k < 3; k++) 
                 for (int l = 0; l < 3; l++) 
                     sum += (int32_t)((int32_t)input[i + k][j + l] - (int32_t)input_zp) * ((int32_t)kernel[k][l] - (int32_t)weight_zp);
-            printf("%d ", sum);
+            //printf("%d ", sum);
             output[i][j] = sum + conv_bias;
             //printf("%d ", output[i][j]);
         }
@@ -134,7 +134,7 @@ int normal_cnn(uint8_t input[28][28])
             for (int j = 0; j < 6; j++)
             {    
                 pool2[n][i][j] = relu(quant_conv1(pool23_cal(output[n][i*2][j*2], output[n][i*2][j*2+1], output[n][i*2+1][j*2], output[n][i*2+1][j*2+1]), conv1_out_zp), conv1_out_zp);
-                printf("%d ", pool2[n][i][j]);
+                //printf("%d ", pool2[n][i][j]);
             }
     
     // conv 2
@@ -153,7 +153,7 @@ int normal_cnn(uint8_t input[28][28])
             for (int j = 0; j < 2; j++)
             {
                 pool3[n][i][j] = relu(quant_conv2(pool23_cal(output2[n][i*2][j*2], output2[n][i*2][j*2+1], output2[n][i*2+1][j*2], output2[n][i*2+1][j*2+1]), conv2_out_zp), conv2_out_zp);
-                //printf("%d ", pool3[n][i][j]);
+                printf("%d ", pool3[n][i][j]);
             }
 
     // fc 1
