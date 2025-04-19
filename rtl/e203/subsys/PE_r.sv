@@ -46,7 +46,7 @@ module PE_r  #(
       // store mode
       // ----------------------
       if (PE_en_up & PE_mode) begin
-        weight_reg    <= PE_data_up[9-1:0]; 
+        weight_reg    <= $signed(PE_data_up[9-1:0]); 
         data_down_reg <= PE_data_up;
         en_down_reg   <= 1'b1;
       end 

@@ -23,11 +23,11 @@ module PE  #(
   output logic                     PE_en_down,
 
   // data  
-  input  logic signed [31:0]       PE_data_up,
-  output logic signed [31:0]       PE_data_down,
+  input  logic signed [31:0]       PE_data_up,   // int32
+  output logic signed [31:0]       PE_data_down, // int32
 
-  input  logic signed [8:0]        PE_data_left,
-  output logic signed [8:0]        PE_data_right
+  input  logic signed [8:0]        PE_data_left, // int9
+  output logic signed [8:0]        PE_data_right // int9
 );
 
   typedef logic signed [31:0] int32_t;
@@ -52,7 +52,7 @@ module PE  #(
       // store mode
       // ----------------------
       if (PE_en_up & PE_mode) begin
-        weight_reg    <= PE_data_up[9-1:0]; 
+        weight_reg    <= $signed(PE_data_up[9-1:0]); 
         data_down_reg <= PE_data_up;
         en_down_reg   <= 1'b1;
       end 

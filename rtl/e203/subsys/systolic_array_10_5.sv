@@ -20,13 +20,13 @@ module systolic_array_10_5 #(
     input  logic                         rst_n,
 
     input  logic        [ROWS-1:0]       en_left,
-    input  logic signed [8:0]            data_left [ROWS],
+    input  logic signed [8:0]            data_left [ROWS], // int9
 
     input  logic        [COLS-1:0]       en_up,
-    input  logic signed [8:0]            data_up   [COLS],
+    input  logic signed [31:0]           data_up   [COLS], // int32
 
     output logic        [COLS-1:0]       en_down,
-    output logic signed [31:0]           data_down [COLS],
+    output logic signed [31:0]           data_down [COLS], // int32
 
     input  logic                         mode      [ROWS][COLS]
 );
@@ -41,11 +41,11 @@ module systolic_array_10_5 #(
 
     // Vertical connections: dimension is [0..ROWS] in row direction, [0..COLS-1] in column
     logic        [0:ROWS][COLS-1:0]                 en_vert;
-    logic signed [0:ROWS][COLS-1:0][L_WIDTH-1:0]    data_vert;
+    logic signed [0:ROWS][COLS-1:0][L_WIDTH-1:0]    data_vert; // int32
 
     // Horizontal connections: dimension is [0..ROWS-1] in row, [0..COLS] in column
     logic        [ROWS-1:0][0:COLS]                 en_horz;
-    logic signed [ROWS-1:0][0:COLS][9-1:0]          data_horz;
+    logic signed [ROWS-1:0][0:COLS][8:0]            data_horz; // int9
 
     // --------------------------------------------------------------------------------
     // Connect the left boundary with en_left/data_left.

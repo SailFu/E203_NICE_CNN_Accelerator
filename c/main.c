@@ -17,7 +17,7 @@ int main(void)
     printf("*************************************************\n");
 
     //conv_comp();
-
+    //normal_cnn(&mnist_imgs_uint8[0*784]);
     // for (int i = 0; i < 10; i++)
     // {
     //     int res = normal_cnn(&mnist_imgs_uint8[i*784]);
