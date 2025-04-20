@@ -1320,8 +1320,10 @@ module e203_subsys_nice_core (
         result_max_idx    <= 0;
       end 
       else if ((cal_conv1_cnt > 1) && (cal_conv1_cnt <= CONV1_RC)) begin // 2-9
-        for (int i = 1; i <= cal_conv1_cnt; i++)
-          sa_data_left[i] <= sa_input_res[i];
+        for (int i = 1; i <= CONV1_RC; i++) begin
+          if (i <= cal_conv1_cnt)
+              sa_data_left[i] <= sa_input_res[i];
+      end
       end 
       else if (cal_conv1_cnt == (CONV1_RC + 1)) begin // 10
         for (int i = 1; i <= CONV1_RC; i++)
@@ -1330,8 +1332,10 @@ module e203_subsys_nice_core (
       else if ((cal_conv1_cnt > (CONV1_RC + 1)) && (cal_conv1_cnt <= (CONV1_RC + 1 + CONV1_NUM))) begin // 11-15
         for (int i = 1; i <= CONV1_RC; i++)
           sa_data_left[i] <= sa_input_res[i];
-        for (int i = 0; i < (cal_conv1_cnt - (CONV1_RC + 1)); i++) 
-          conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_output_res[i];
+        for (int i = 0; i < CONV1_NUM; i++) begin
+          if (i < (cal_conv1_cnt - (CONV1_RC + 1)))
+            conv1_output_reg[i][conv1_output_store_row_idx[i]][conv1_output_store_col_idx[i]] <= sa_output_res[i];
+        end
       end
       else if ((cal_conv1_cnt > (CONV1_RC + 1 + CONV1_NUM)) && (cal_conv1_cnt <= CONV1_OUTPUT_SIZE)) begin // 16-144
         for (int i = 1; i <= CONV1_RC; i++)
@@ -1359,14 +1363,16 @@ module e203_subsys_nice_core (
       end
     end
 
-    if (state_is_cal_conv2 & (cal_conv2_cnt > 0)) begin
+    else if (state_is_cal_conv2 & (cal_conv2_cnt > 0)) begin
       if (cal_conv2_cnt == 1) begin // 1
         sa_en_left <= {{CONV2_RC{1'b1}}, 1'b0};
         sa_data_left[1] <= sa_input_res[1];
       end 
       else if ((cal_conv2_cnt > 1) && (cal_conv2_cnt <= CONV2_RC)) begin // 2-9
-        for (int i = 1; i <= cal_conv2_cnt; i++)
-          sa_data_left[i] <= sa_input_res[i];
+        for (int i = 1; i <= CONV2_RC; i++) begin
+          if (i <= cal_conv2_cnt)
+            sa_data_left[i] <= sa_input_res[i];
+        end
       end 
       else if (cal_conv2_cnt == (CONV2_RC + 1)) begin // 10
         for (int i = 1; i <= CONV2_RC; i++)
@@ -1375,8 +1381,10 @@ module e203_subsys_nice_core (
       else if ((cal_conv2_cnt > (CONV2_RC + 1)) && (cal_conv2_cnt <= (CONV2_RC + 1 + CONV2_NUM))) begin // 11-15
         for (int i = 1; i <= CONV1_RC; i++)
           sa_data_left[i] <= sa_input_res[i];
-        for (int i = 0; i < (cal_conv2_cnt - (CONV2_RC + 1)); i++) 
-          conv2_output_reg[i][conv2_output_store_row_idx[i]][conv2_output_store_col_idx[i]] <= sa_output_sum[i];
+        for (int i = 0; i < CONV2_NUM; i++) begin
+          if (i < (cal_conv2_cnt - (CONV2_RC + 1)))
+            conv2_output_reg[i][conv2_output_store_row_idx[i]][conv2_output_store_col_idx[i]] <= sa_output_sum[i];
+        end
       end
       else if ((cal_conv2_cnt > (CONV2_RC + 1 + CONV2_NUM)) && (cal_conv2_cnt <= CONV2_OUTPUT_SIZE)) begin // 16
         for (int i = 1; i <= CONV2_RC; i++)
@@ -1404,7 +1412,7 @@ module e203_subsys_nice_core (
       end
     end
 
-    if (state_is_cal_fc1 & (cal_fc1_cnt > 0)) begin
+    else if (state_is_cal_fc1 & (cal_fc1_cnt > 0)) begin
       if (cal_fc1_cnt == 1) begin // 1
         sa_en_left <= {SA_ROWS{1'b1}};
         sa_data_left[0] <= sa_input_res[0];
@@ -1425,7 +1433,7 @@ module e203_subsys_nice_core (
       end
     end
 
-    if (state_is_cal_fc2 & (cal_fc2_cnt > 0)) begin
+    else if (state_is_cal_fc2 & (cal_fc2_cnt > 0)) begin
       if (cal_fc2_cnt == 1) begin // 1
         sa_en_left <= {SA_ROWS{1'b1}};
         sa_data_left[0] <= sa_input_res[0];

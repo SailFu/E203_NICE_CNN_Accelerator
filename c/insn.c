@@ -200,7 +200,7 @@ int normal_cnn(uint8_t input[28][28])
             max_idx = i;
         }
     }
-    printf("\nResult: %d\n", max_idx);
+    //printf("\nResult: %d\n", max_idx);
     return max_idx;
 }
 
