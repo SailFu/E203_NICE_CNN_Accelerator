@@ -4,7 +4,7 @@ RUN_DIR      := ${PWD}/run
 TESTNAME     := rv32ui-p-add 
 TESTCASE     := ${RUN_DIR}/../../riscv-tools/riscv-tests/isa/generated/${TESTNAME}
 
-SIM          := iverilog 
+SIM          := vcs
 DUMPWAVE     := 1
 
 CORE        := e203

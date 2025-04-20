@@ -9,25 +9,18 @@
 #include "data.h"
 
 void conv_comp();
+void nice();
+void normal();
 
 int main(void)
 {
     printf("\n*************************************************\n");
     printf("****** begin to test the NICE accelerator *******\n");
     printf("*************************************************\n");
-
-    //conv_comp();
-    //normal_cnn(&mnist_imgs_uint8[0*784]);
-    // for (int i = 0; i < 10; i++)
-    // {
-    //     int res = normal_cnn(&mnist_imgs_uint8[i*784]);
-    //     if (mnist_labels[i]  == res)
-    //         printf("Test %d: Pass\n", i);
-    //     else
-    //         printf("Test %d: Fail, expected %d, got %d\n", i, mnist_labels[i], res);
-    // }
     
-    nice_cnn(&mnist_imgs_uint8[0*784]);
+    int test_num = 10;
+
+    nice(test_num);
 
     printf("\n**************************************************\n");
     printf("******** end of test the NICE accelerator ********\n");
@@ -36,6 +29,46 @@ int main(void)
     return 0;
 }
 
+void nice(int test_num)
+{
+    nice_load_weights();
+    int correct_cnt = 0;
+    for (int i = 0; i < test_num; i++)
+    {
+        int res = nice_cnn(&mnist_imgs_uint8[i*784]);
+        if (mnist_labels[i] == res)
+        {
+            printf("Test %d: Pass, Result: %d\n", i+1, res);
+            correct_cnt++;
+        }
+        else
+            printf("Test %d: Fail, expected %d, got %d\n", i+1, mnist_labels[i], res);
+    }
+    if (correct_cnt == test_num)
+        printf("\nAll Passed!\n");
+    else
+        printf("\nResults are incorrect! Errors count: %d\n", test_num - correct_cnt);
+}
+
+void normal(int test_num)
+{
+    int correct_cnt = 0;
+    for (int i = 0; i < test_num; i++)
+    {
+        int res = normal_cnn(&mnist_imgs_uint8[i*784]);
+        if (mnist_labels[i] == res)
+        {
+            printf("Test %d: Pass, Result: %d\n", i+1, res);
+            correct_cnt++;
+        }
+        else
+            printf("Test %d: Fail, expected %d, got %d\n", i+1, mnist_labels[i], res);
+    }
+    if (correct_cnt == test_num)
+        printf("\nAll Passed!\n");
+    else
+        printf("\nResults are incorrect! Errors count: %d\n", test_num - correct_cnt);
+}
 
 void conv_comp()
 {
@@ -115,17 +148,5 @@ void conv_comp()
     } else {
         printf("\nResults are incorrect! Errors count: %d\n", NUM_KERNELS * OUT_ROWS * OUT_COLS - correct_cnt);
     }
-
-    // for (int n = 0; n < NUM_KERNELS; n++) 
-    // {
-    //     printf("\nConvlolution Output %d (12*12):\n", n);
-    //     for (int i = 0; i < OUT_ROWS; i++) {
-    //         for (int j = 0; j < OUT_COLS; j++) {
-    //             printf("%6d ", output_matrix[n][i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    // }
 }
-
 

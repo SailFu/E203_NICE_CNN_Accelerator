@@ -21,7 +21,6 @@ void conv1_cal(uint8_t input[14][14], const int8_t kernel[3][3], int32_t output[
     }
 }
 
-
 void conv2_cal(uint8_t input[6][6], const int8_t kernel[3][3], int32_t output[4][4], uint8_t input_zp, uint8_t weight_zp, int32_t conv_bias, int n) 
 {
     for (int i = 0; i < 4; i++) 
@@ -37,7 +36,6 @@ void conv2_cal(uint8_t input[6][6], const int8_t kernel[3][3], int32_t output[4]
         }
     }
 }
-
 
 uint8_t pool1_cal(uint8_t in1, uint8_t in2, uint8_t in3, uint8_t in4)
 {
@@ -106,7 +104,6 @@ uint8_t relu(uint8_t in, uint8_t zp)
 {
     return in < zp ? zp : in;
 }
-
 
 int normal_cnn(uint8_t input[28][28])
 {
@@ -207,15 +204,18 @@ int normal_cnn(uint8_t input[28][28])
     return max_idx;
 }
 
-
-int nice_cnn(uint8_t input[784])
+void nice_load_weights()
 {
-    int result;
     custom_load_conv1((uintptr_t)conv1_weight);
     custom_load_conv2((uintptr_t)conv2_weight);
     custom_load_fc1((uintptr_t)fc1_weight);
     custom_load_fc2((uintptr_t)fc2_weight);
-    custom_load_input((uintptr_t)input);
-    return 0;
+}
+
+int nice_cnn(uint8_t input[784])
+{
+    int result;
+    result = custom_load_input((uintptr_t)input);
+    return result;
 }
 

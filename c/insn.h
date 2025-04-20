@@ -72,18 +72,19 @@ __STATIC_FORCEINLINE void custom_load_fc2(uintptr_t addr)
     );
 }
 
-__STATIC_FORCEINLINE void custom_load_input(uintptr_t addr)
+__STATIC_FORCEINLINE int custom_load_input(uintptr_t addr)
 {
-    int zero = 0;
+    int result;
     asm volatile (
-        ".insn r 0x7b, 2, 15, x0, %1, x0"
-        : "=r"(zero)
+        ".insn r 0x7b, 6, 15, %0, %1, x0"
+        : "=r"(result)
         : "r"(addr)
     );
+    return result;
 }
 
-
-int nice_cnn(uint8_t input[784]);
+void nice_load_weights();
+int  nice_cnn(uint8_t input[784]);
 
 int normal_cnn(uint8_t input[28][28]);
 

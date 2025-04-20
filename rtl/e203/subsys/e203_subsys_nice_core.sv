@@ -96,7 +96,7 @@ module e203_subsys_nice_core (
   wire custom3_load_conv2 = custom3 && (func3 == 3'b010) && (func7 == 7'b0001100);
   wire custom3_load_fc1   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001101);
   wire custom3_load_fc2   = custom3 && (func3 == 3'b010) && (func7 == 7'b0001110);
-  wire custom3_load_input = custom3 && (func3 == 3'b010) && (func7 == 7'b0001111);
+  wire custom3_load_input = custom3 && (func3 == 3'b110) && (func7 == 7'b0001111);
 
   ////////////////////////////////////////////////////////////
   //  multi-cyc op
@@ -283,12 +283,33 @@ module e203_subsys_nice_core (
               state <= MOVE_FC1;
               fc1_block_cnt <= fc1_block_cnt + 1;
             end else begin
-              state <= IDLE;
+              state <= MOVE_FC2;
               fc1_block_cnt <= 0;
             end
           end
           else
             state <= CAL_FC1;
+        end
+
+        MOVE_FC2: begin
+          if (move_fc2_done)
+            state <= CAL_FC2;
+          else
+            state <= MOVE_FC2;
+        end
+
+        CAL_FC2: begin
+          if (cal_fc2_done) begin
+            if (fc2_block_cnt < 1) begin
+              state <= MOVE_FC2;
+              fc2_block_cnt <= fc2_block_cnt + 1;
+            end else begin
+              state <= IDLE;
+              fc2_block_cnt <= 0;
+            end
+          end
+          else
+            state <= CAL_FC2;
         end
 
         default:
@@ -589,7 +610,7 @@ module e203_subsys_nice_core (
     if (!nice_rst_n)
       load_input_cnt <= 0;
     else 
-    if (load_conv1_done)
+    if (load_input_done)
       load_input_cnt <= 0;
     else if (load_input_cnt_incr)
       load_input_cnt <= load_input_cnt + 1;
@@ -598,7 +619,6 @@ module e203_subsys_nice_core (
   end
 
   // valid signals
-  wire nice_rsp_valid_load_input     = state_is_load_input & load_input_cnt_done & nice_icb_rsp_valid;
   wire nice_icb_cmd_valid_load_input = state_is_load_input & (load_input_cnt < INPUT_CNT_CYCLES);
 
   // input_weight
@@ -616,7 +636,7 @@ module e203_subsys_nice_core (
   logic [$clog2(INPUT_SIZE):0] input_wptr;
 
   // input buffer data storage
-  always @(posedge nice_clk or negedge nice_rst_n) begin
+  always @(posedge nice_clk or negedge nice_rst_n) begin : READ_INPUT
     if (!nice_rst_n) begin
       input_reg_flat <= '{default: '0};
       input_wptr <= 0;
@@ -627,6 +647,9 @@ module e203_subsys_nice_core (
         input_reg_flat[input_wptr + b] <= uint8_t'(nice_icb_rsp_rdata[8*b +: 8]);
       end
       input_wptr <= input_wptr + 4;
+    end
+    else if (load_input_cnt_done) begin
+      input_wptr <= 0;
     end
   end
 
@@ -698,7 +721,7 @@ module e203_subsys_nice_core (
   reg [($clog2(FC1_OUT_WIDTH))*2-1:0]  fc1_move_select_row_idx[SA_COLS];
   reg [($clog2(FC1_IN_WIDTH))*2-1:0]   fc1_move_select_col_idx;
 
-  // input matrix move to SA index accumulation
+  // fc1 move select idx accumulation
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
         fc1_move_select_row_idx <= '{default: '0};
@@ -731,7 +754,35 @@ module e203_subsys_nice_core (
       end
     end
     else if (state_is_move_fc1) begin
-        fc1_move_select_col_idx <= fc1_move_select_col_idx - 1;
+      fc1_move_select_col_idx <= fc1_move_select_col_idx - 1;
+    end
+  end
+
+  reg [($clog2(FC2_OUT_WIDTH))*2-1:0]  fc2_move_select_row_idx[SA_COLS];
+  reg [($clog2(FC2_IN_WIDTH))*2-1:0]   fc2_move_select_col_idx;
+
+  // fc2 move select idx accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin
+    if (!nice_rst_n) begin
+        fc2_move_select_row_idx <= '{default: '0};
+        fc2_move_select_col_idx <= '0;
+    end
+    else if (cal_conv1_done) begin  // init fc2 move select idx
+      for (int i = 0; i < SA_COLS; i++) begin
+        fc2_move_select_row_idx[i] <= $unsigned(i);     // 0~4
+      end
+      fc2_move_select_col_idx <= 'd9;                   // 9
+    end
+    else if (cal_fc2_done) begin
+      if (fc2_block_cnt == 0) begin
+        for (int i = 0; i < SA_COLS; i++) begin      
+          fc2_move_select_row_idx[i] <= $unsigned(i+5); // 5~9
+        end
+        fc2_move_select_col_idx <= 'd9;                 // 9
+      end
+    end
+    else if (state_is_move_fc2) begin
+      fc2_move_select_col_idx <= fc2_move_select_col_idx - 1;
     end
   end
 
@@ -743,7 +794,6 @@ module e203_subsys_nice_core (
   // dequant weight by sub zero_point
   always_comb begin
     for (int i = 0; i < SA_COLS; i++) begin
-      weight_res[i] = '0; // default
       if (state_is_move_conv1) begin
         weight_res[i] = conv1_weight[i][CONV1_RC-1-move_cnt] - $signed(conv1_weight_zp);
       end
@@ -753,9 +803,12 @@ module e203_subsys_nice_core (
       else if (state_is_move_fc1) begin
         weight_res[i] = fc1_weight[fc1_move_select_row_idx[i]][fc1_move_select_col_idx] - $signed(fc1_weight_zp);
       end
-      // else if (state_is_load_fc2) begin
-      //   weight_res[i] = fc2_weight[move_conv1_cnt][i] - $signed(fc2_weight_zp);
-      // end
+      else if (state_is_move_fc2) begin
+        weight_res[i] = fc2_weight[fc2_move_select_row_idx[i]][fc2_move_select_col_idx] - $signed(fc2_weight_zp);
+      end
+      else begin
+        weight_res[i] = '0; // default
+      end
     end
   end
 
@@ -1040,9 +1093,103 @@ module e203_subsys_nice_core (
     end 
   end
 
+  //////////// 7. cal_fc2
+  localparam CAL_FC2_CYCLES = FC2_OUT_WIDTH + SA_COLS + 2;   // 17
+
+  integer cal_fc2_cnt;
+  wire cal_fc2_cnt_done     = (cal_fc2_cnt == CAL_FC2_CYCLES);
+  wire cal_fc2_icb_rsp_hs   = state_is_cal_fc2;
+  wire cal_fc2_cnt_incr     = cal_fc2_icb_rsp_hs & ~cal_fc2_cnt_done;
+  assign cal_fc2_done       = cal_fc2_icb_rsp_hs & cal_fc2_cnt_done;
+
+  // cal_fc2_cnt accumulation
+  always @(posedge nice_clk or negedge nice_rst_n) begin : CAL_FC2_CNT
+    if (!nice_rst_n)
+      cal_fc2_cnt <= 0;
+    else 
+    if (cal_fc2_done)
+      cal_fc2_cnt <= 0;
+    else if (cal_fc2_cnt_incr)
+      cal_fc2_cnt <= cal_fc2_cnt + 1;
+    else
+      cal_fc2_cnt <= cal_fc2_cnt;
+  end
+
+  
+  localparam int conv_row_offset[CONV1_RC] = '{0, 0, 0, 2, 2, 2, 4, 4, 4};
+  localparam int conv_col_offset[CONV1_RC] = '{0, 2, 4, 0, 2, 4, 0, 2, 4};
+
+  // send conv data to SA after pool and sub zero_point
+  int9_t sa_input_res [SA_ROWS];
+
+  // input:  input_reg / input_zp
+  // output: sa_input_res => sa_data_left
+  // dequant (and pool) input data by sub zero_point
+  always_comb begin
+    for (int i = 0; i < SA_ROWS; i++) begin
+      uint8_t a[7]; 
+      int9_t  quant;
+      int9_t  max_int9;
+      int9_t  zp_int9;
+
+      if ((state_is_cal_conv1 && (cal_conv1_cnt <= (CONV1_OUTPUT_SIZE + CONV1_RC))) |
+          (state_is_cal_conv2 && (cal_conv2_cnt <= (CONV2_OUTPUT_SIZE + CONV2_RC)))) begin
+        if ((i >= 1) && ((i <= cal_conv1_cnt) | (i <= cal_conv2_cnt))) begin   // i: 1-9
+          if (state_is_cal_conv1) begin
+            a[0] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
+            a[1] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
+            a[2] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
+            a[3] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
+            zp_int9 = {1'b0, input_zp};
+          end else if (state_is_cal_conv2) begin
+            a[0] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
+            a[1] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
+            a[2] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
+            a[3] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
+            zp_int9 = {1'b0, conv1_out_zp};
+          end else begin
+            a[0] = '0;
+            a[1] = '0;
+            a[2] = '0;
+            a[3] = '0;
+            zp_int9 = '0;
+          end
+        end
+      end else if (state_is_cal_fc1 && ((cal_fc1_cnt-1) == i)) begin
+        a[0] = conv2_output_flat[fc1_select_idx];
+        a[1] = conv2_output_flat[fc1_select_idx+1];
+        a[2] = conv2_output_flat[fc1_select_idx+2];
+        a[3] = conv2_output_flat[fc1_select_idx+3];
+        zp_int9 = {1'b0, conv2_out_zp};
+      end else if (state_is_cal_fc2 && ((cal_fc2_cnt-1) == i)) begin
+        a[0] = fc1_output_reg[i];
+        a[1] = fc1_output_reg[i];
+        a[2] = fc1_output_reg[i];
+        a[3] = fc1_output_reg[i];
+        zp_int9 = {1'b0, fc1_out_zp};
+      end else begin
+        a[0] = '0;
+        a[1] = '0;
+        a[2] = '0;
+        a[3] = '0;
+        zp_int9 = '0;
+      end
+
+      // pool
+      a[4] = (a[0] > a[1]) ? a[0] : a[1];
+      a[5] = (a[2] > a[3]) ? a[2] : a[3];
+      a[6] = (a[4] > a[5]) ? a[4] : a[5];
+      max_int9 = {1'b0, a[6]};
+      // dequant
+      quant = max_int9 - zp_int9;
+
+      sa_input_res[i] = quant;
+    end
+  end
+
   // receive conv output from SA and add bias and quant and clamp to uint8
   uint8_t sa_output_res [SA_COLS];
-  
+
   // input:  sa_data_down / cal_bias / output_scale / output_zero_point
   // output: sa_output_res => output_reg
   // quant and clamp output data by add bias, divide scale and add zero_point then clamp and relu
@@ -1065,71 +1212,6 @@ module e203_subsys_nice_core (
       end
 
       sa_output_res[i] = res;
-    end
-  end
-
-  localparam int conv_row_offset[CONV1_RC] = '{0, 0, 0, 2, 2, 2, 4, 4, 4};
-  localparam int conv_col_offset[CONV1_RC] = '{0, 2, 4, 0, 2, 4, 0, 2, 4};
-
-  // send conv data to SA after pool and sub zero_point
-  int9_t sa_input_res [SA_ROWS];
-
-  // input:  input_reg / input_zp
-  // output: sa_input_res => sa_data_left
-  // dequant (and pool) input data by sub zero_point
-  always_comb begin
-    for (int i = 0; i < SA_ROWS; i++) begin
-      uint8_t a[7]; 
-      int9_t  quant;
-      int9_t  max9;
-      int9_t  zp9;
-
-      if ((state_is_cal_conv1 && (cal_conv1_cnt <= (CONV1_OUTPUT_SIZE + CONV1_RC))) |
-          (state_is_cal_conv2 && (cal_conv2_cnt <= (CONV2_OUTPUT_SIZE + CONV2_RC)))) begin
-        if ((i >= 1) && ((i <= cal_conv1_cnt) | (i <= cal_conv2_cnt))) begin   // i: 1-9
-          if (state_is_cal_conv1) begin
-            a[0] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
-            a[1] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
-            a[2] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
-            a[3] = input_reg[conv1_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv1_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
-            zp9  = {1'b0, input_zp};
-          end else if (state_is_cal_conv2) begin
-            a[0] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
-            a[1] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]  ][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
-            a[2] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]  ];
-            a[3] = conv1_output_reg[conv2_cha_cnt][conv2_input_select_row_idx[i-1]+conv_row_offset[i-1]+1][conv2_input_select_col_idx[i-1]+conv_col_offset[i-1]+1];
-            zp9  = {1'b0, conv1_out_zp};
-          end else begin
-            a[0] = '0;
-            a[1] = '0;
-            a[2] = '0;
-            a[3] = '0;
-            zp9  = '0;
-          end
-        end
-      end else if (state_is_cal_fc1 && ((cal_fc1_cnt-1) == i)) begin
-        a[0] = conv2_output_flat[fc1_select_idx];
-        a[1] = conv2_output_flat[fc1_select_idx+1];
-        a[2] = conv2_output_flat[fc1_select_idx+2];
-        a[3] = conv2_output_flat[fc1_select_idx+3];
-        zp9  = {1'b0, conv2_out_zp};
-      end else begin
-        a[0] = '0;
-        a[1] = '0;
-        a[2] = '0;
-        a[3] = '0;
-        zp9  = '0;
-      end
-
-      // pool
-      a[4] = (a[0] > a[1]) ? a[0] : a[1];
-      a[5] = (a[2] > a[3]) ? a[2] : a[3];
-      a[6] = (a[4] > a[5]) ? a[4] : a[5];
-      max9 = {1'b0, a[6]};
-      // dequant
-      quant = max9 - zp9;
-
-      sa_input_res[i] = quant;
     end
   end
 
@@ -1184,11 +1266,22 @@ module e203_subsys_nice_core (
         end
         sa_output_sum[i] = res;
       end
+      else if (state_is_cal_fc2 && (cal_fc2_cnt >= (FC2_OUT_WIDTH + 2)) && (i == (cal_fc2_cnt-(FC2_OUT_WIDTH + 2)))) begin // cal_fc2
+        int32_t res;
+        if (fc2_block_cnt == 0)
+          res = sa_data_down[i] + fc2_bias[i];
+        else
+          res = sa_data_down[i] + fc2_bias[i+5];
+        sa_output_sum[i] = res;
+      end
       else begin
         sa_output_sum[i] = '0;
       end
     end 
   end
+
+  int32_t result_max_buffer;
+  int32_t result_max_idx;
 
   // Regesters:
   // int8_t  conv1_weight [CONV1_NUM][CONV1_RC];             5 * 9
@@ -1201,11 +1294,13 @@ module e203_subsys_nice_core (
   // Move input data to systolic array, and store output data
   always @(posedge nice_clk or negedge nice_rst_n) begin
     if (!nice_rst_n) begin
-      sa_en_left       <= '0;
-      sa_data_left     <= '{default: '0};
-      conv1_output_reg <= '{default: '0};
-      conv2_output_reg <= '{default: '0};
-      fc1_output_reg   <= '{default: '0};
+      sa_en_left        <= '0;
+      sa_data_left      <= '{default: '0};
+      conv1_output_reg  <= '{default: '0};
+      conv2_output_reg  <= '{default: '0};
+      fc1_output_reg    <= '{default: '0};
+      result_max_buffer <= '0;
+      result_max_idx    <= '0;
     end
     else if (state_is_cal_conv1 & (cal_conv1_cnt > 0)) begin
       if (cal_conv1_cnt == 1) begin // 1
@@ -1221,6 +1316,8 @@ module e203_subsys_nice_core (
         for (int i = 0; i < FC1_OUT_WIDTH; i++) begin
           fc1_output_reg[i] <= fc1_bias[i];
         end
+        result_max_buffer <= 32'sh8000_0000;
+        result_max_idx    <= 0;
       end 
       else if ((cal_conv1_cnt > 1) && (cal_conv1_cnt <= CONV1_RC)) begin // 2-9
         for (int i = 1; i <= cal_conv1_cnt; i++)
@@ -1328,19 +1425,33 @@ module e203_subsys_nice_core (
       end
     end
 
-
+    if (state_is_cal_fc2 & (cal_fc2_cnt > 0)) begin
+      if (cal_fc2_cnt == 1) begin // 1
+        sa_en_left <= {SA_ROWS{1'b1}};
+        sa_data_left[0] <= sa_input_res[0];
+      end 
+      else if ((cal_fc2_cnt > 1) && (cal_fc2_cnt <= FC2_OUT_WIDTH)) begin // 2-10
+        for (int i = 0; i < FC2_OUT_WIDTH; i++)
+          sa_data_left[i] <= sa_input_res[i];
+      end 
+      else if (cal_fc2_cnt == (FC2_OUT_WIDTH + 1)) begin // 11
+        sa_en_left <= {SA_ROWS{1'b0}};
+        sa_data_left <= '{default: '0};
+      end
+      else if ((cal_fc2_cnt > (FC2_OUT_WIDTH + 1)) && (cal_fc2_cnt <= (FC2_OUT_WIDTH + 1 + SA_COLS))) begin // 12-16
+        if (sa_output_sum[cal_fc2_cnt-(FC2_OUT_WIDTH + 2)] > result_max_buffer) begin
+          result_max_buffer <= sa_output_sum[cal_fc2_cnt-(FC2_OUT_WIDTH + 2)];
+          if (fc2_block_cnt == 0)
+            result_max_idx  <= int32_t'(cal_fc2_cnt-(FC2_OUT_WIDTH + 2));
+          else
+            result_max_idx  <= int32_t'(5 + cal_fc2_cnt-(FC2_OUT_WIDTH + 2));
+        end
+      end
+    end
   end
 
 
-  reg [`E203_XLEN-1:0] start_conv_rs1_reg;
-
-  // store rs1
-  always @(posedge nice_clk or negedge nice_rst_n) begin
-    if (!nice_rst_n)
-      start_conv_rs1_reg <= 0;
-    else if (state_is_idle & custom3_load_input)
-      start_conv_rs1_reg <= nice_req_rs1; // wrong
-  end
+  wire nice_rsp_valid_load_input = state_is_cal_fc2 & (fc2_block_cnt == 1) & cal_fc2_done;
 
 
   ////////////////////////////////////////////////////////////////
@@ -1360,7 +1471,7 @@ module e203_subsys_nice_core (
   //wire conv_start_maddr_ena = (state_is_start_conv & conv_start_cmd_store);
 
   // Combine the enable signals for the memory address update
-  wire maddr_ena = load_conv1_maddr_ena | load_conv2_maddr_ena | load_fc1_maddr_ena   | 
+  wire maddr_ena = load_conv1_maddr_ena | load_conv2_maddr_ena | load_fc1_maddr_ena | 
                    load_fc2_maddr_ena   | load_input_maddr_ena;
 
   // When in IDLE state, use the base address from nice_req_rs1; otherwise, use the current accumulator value.
@@ -1416,12 +1527,12 @@ module e203_subsys_nice_core (
 
   // The NICE core provides a valid response if any of the three operations (rowsum, sbuf, lbuf)
   // signals a valid result.
-  assign nice_rsp_valid = nice_rsp_valid_load_conv1 | nice_rsp_valid_load_conv2 | nice_rsp_valid_load_fc1   | 
+  assign nice_rsp_valid = nice_rsp_valid_load_conv1 | nice_rsp_valid_load_conv2 | nice_rsp_valid_load_fc1 | 
                           nice_rsp_valid_load_fc2   | nice_rsp_valid_load_input;
 
-  // When in the ROWSUM state, the response data is the accumulated row sum;
+  // When in the CAL_FC2 state, the response data is result_max_idx;
   // in other states, it is typically zero or unused here.
-  assign nice_rsp_rdat  = {`E203_XLEN{1'b0}}; //{`E203_XLEN{state_is_rowsum}} & rowsum_res;
+  assign nice_rsp_rdat  = {`E203_XLEN{state_is_cal_fc2}} & result_max_idx;
 
   // Indicate a memory access bus error if a valid memory response indicates an error.
   // (Optionally, an illegal-instruction check can also be included if needed.)
@@ -1463,7 +1574,7 @@ module e203_subsys_nice_core (
   assign nice_icb_cmd_size = 2'b10;
 
   // Assert 'nice_mem_holdup' when in any multi-cycle memory state
-  assign nice_mem_holdup = state_is_load_conv1 | state_is_load_conv2 | state_is_load_fc1   |
+  assign nice_mem_holdup = state_is_load_conv1 | state_is_load_conv2 | state_is_load_fc1 |
                            state_is_load_fc2   | state_is_load_input;
 
 
