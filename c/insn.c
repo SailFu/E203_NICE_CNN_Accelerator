@@ -153,7 +153,7 @@ int normal_cnn(uint8_t input[28][28])
             for (int j = 0; j < 2; j++)
             {
                 pool3[n][i][j] = relu(quant_conv2(pool23_cal(output2[n][i*2][j*2], output2[n][i*2][j*2+1], output2[n][i*2+1][j*2], output2[n][i*2+1][j*2+1]), conv2_out_zp), conv2_out_zp);
-                printf("%d ", pool3[n][i][j]);
+                //printf("%d ", pool3[n][i][j]);
             }
 
     // fc 1
@@ -175,7 +175,12 @@ int normal_cnn(uint8_t input[28][28])
     // quant
     volatile uint8_t fc1_out_quant[10] = {0};
     for (int i = 0; i < 10; i++)
+    {
+        //printf("%d ", fc1_out[i]);
         fc1_out_quant[i] = quant_fc1(fc1_out[i], fc1_out_zp);
+        //printf("%d ", fc1_out_quant[i]);
+    }
+        
 
     // fc 2
     volatile int32_t fc2_out[10] = {0};
@@ -188,7 +193,7 @@ int normal_cnn(uint8_t input[28][28])
 
     // print result
     for (int i = 0; i < 10; i++) {
-        printf("%d ", fc2_out[i]);
+        //printf("%d ", fc2_out[i]);
     }
     volatile int32_t max_out = fc2_out[0];
     volatile int max_idx = 0;
