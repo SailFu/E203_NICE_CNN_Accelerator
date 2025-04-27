@@ -8,7 +8,7 @@
 #include "insn.h"
 #include "data.h"
 
-void conv_comp();
+
 void nice(int test_num);
 void normal(int test_num);
 
@@ -19,10 +19,10 @@ int main(void)
     printf("****** begin to test the NICE accelerator *******\n");
     printf("*************************************************\n");
     
-    int test_num = 1;
+    int test_num = 40;
 
     nice(test_num);
-    normal(test_num);
+    //normal(test_num);
 
     printf("\n**************************************************\n");
     printf("******** end of test the NICE accelerator ********\n");
@@ -40,6 +40,7 @@ void nice(int test_num)
     nice_load_weights();
 
     int correct_cnt = 0;
+    float acc;
 
     for (int i = 0; i < test_num; i++)
     {
@@ -54,7 +55,7 @@ void nice(int test_num)
         instret_nice   = end_instret - begin_instret;
         cycle_nice     = end_cycle - begin_cycle;
         
-        printf("\nNICE instret: %d, cycle: %d \n", instret_nice, cycle_nice); 
+        //printf("NICE instret: %d, cycle: %d \n", instret_nice, cycle_nice); 
 
         if (mnist_labels[i] == res)
         {
@@ -64,10 +65,10 @@ void nice(int test_num)
         else
             printf("Test %d: Fail, expected %d, got %d\n", i+1, mnist_labels[i], res);
     }
-    if (correct_cnt == test_num)
-        printf("\nNICE All Passed!\n");
-    else
-        printf("\nNICE Results are incorrect! Errors count: %d\n", test_num - correct_cnt);
+
+    acc = (float)correct_cnt / test_num * 100;
+
+    printf("\nNICE Finished. The Accuracy is: %.2f%%\n", acc);
 }
 
 

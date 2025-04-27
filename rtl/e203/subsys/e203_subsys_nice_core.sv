@@ -1065,15 +1065,20 @@ module e203_subsys_nice_core (
       // each 2 row and 2 col is a 2×2 block
       for (int r = 0; r < 4; r += 2) begin
         for (int c = 0; c < 4; c += 2) begin
-          //   (r,c) → (r,c+1) → (r+1,c) → (r+1,c+1)
-          conv2_output_flat[idx++] = conv2_output_reg[ch][r  ][c  ];
-          conv2_output_flat[idx++] = conv2_output_reg[ch][r  ][c+1];
-          conv2_output_flat[idx++] = conv2_output_reg[ch][r+1][c  ];
-          conv2_output_flat[idx++] = conv2_output_reg[ch][r+1][c+1];
+          // (r,c) → (r,c+1) → (r+1,c) → (r+1,c+1)
+          conv2_output_flat[idx] = conv2_output_reg[ch][r  ][c  ];
+          idx = idx + 1;
+          conv2_output_flat[idx] = conv2_output_reg[ch][r  ][c+1];
+          idx = idx + 1;
+          conv2_output_flat[idx] = conv2_output_reg[ch][r+1][c  ];
+          idx = idx + 1;
+          conv2_output_flat[idx] = conv2_output_reg[ch][r+1][c+1];
+          idx = idx + 1;
         end
       end
     end
   end
+  
 
   reg [$clog2(POOL3_INPUT_SIZE)-1:0] fc1_select_idx;
 

@@ -31,8 +31,8 @@ extern int32_t fc2_bias[10];
 extern uint8_t fc2_out_zp;
 
 
-extern int8_t mnist_labels[10];
-extern uint8_t mnist_imgs_uint8[7840];
+extern int8_t mnist_labels[40];
+extern uint8_t mnist_imgs_uint8[31360];
 
 
 #endif

@@ -95,7 +95,7 @@ def debug_inference(quant_model, x_fp32):
     out_fc1 = quant_model.fc1(out3)
     print("\n>>> FC1 输出:")
     print("  out_fc1 scale:     ", out_fc1.q_scale())
-    print("  out_fc1 zero_point:", out_fc1.q_zero_point())159
+    print("  out_fc1 zero_point:", out_fc1.q_zero_point())
     print("  out_fc1 int_repr:", out_fc1.int_repr())
     
     out_fc1_relu = F.relu(out_fc1)

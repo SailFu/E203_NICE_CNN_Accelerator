@@ -222,7 +222,7 @@ module tb_top();
   end
 
   initial begin
-    #40000000
+    #400000000
         $display("Time Out !!!");
      $finish;
   end
@@ -267,7 +267,7 @@ module tb_top();
 
     reg [7:0] itcm_mem [0:(`E203_ITCM_RAM_DP*8)-1];
     initial begin
-      $readmemh({testcase, ".verilog"}, itcm_mem);
+      $readmemh({"/home/ICer/Desktop/Workspace/NICE_default/Debug/NICE_default.verilog"}, itcm_mem);
 
       for (i=0;i<(`E203_ITCM_RAM_DP);i=i+1) begin
           `ITCM.mem_r[i][00+7:00] = itcm_mem[i*8+0];
@@ -355,5 +355,4 @@ e203_soc_top u_e203_soc_top(
 
 
 endmodule
-
 
